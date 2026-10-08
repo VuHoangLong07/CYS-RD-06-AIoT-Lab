@@ -1,0 +1,304 @@
+[
+  {
+    "id": "a100000000000001",
+    "type": "tab",
+    "label": "Room 1 software lab",
+    "disabled": false,
+    "info": "Python sensor -> Mosquitto -> Node-RED -> Mosquitto -> Python virtual fan. ON at >=28 C, OFF at <=26 C; keep the last requested state between thresholds."
+  },
+  {
+    "id": "a100000000000002",
+    "type": "mqtt-broker",
+    "name": "Mosquitto in Docker",
+    "broker": "mosquitto",
+    "port": "1883",
+    "clientid": "node-red-room1",
+    "autoConnect": true,
+    "usetls": false,
+    "protocolVersion": "4",
+    "keepalive": "60",
+    "cleansession": true,
+    "autoUnsubscribe": true,
+    "birthTopic": "",
+    "birthQos": "0",
+    "birthPayload": "",
+    "birthMsg": {},
+    "closeTopic": "",
+    "closeQos": "0",
+    "closePayload": "",
+    "closeMsg": {},
+    "willTopic": "",
+    "willQos": "0",
+    "willPayload": "",
+    "willMsg": {}
+  },
+  {
+    "id": "a100000000000003",
+    "type": "comment",
+    "z": "a100000000000001",
+    "name": "Temperature >=28: ON; <=26: OFF; between: keep state",
+    "x": 350,
+    "y": 60,
+    "wires": [],
+    "info": "Every valid temperature reading produces a plain-text ON/OFF command. Start the Python fan subscriber first."
+  },
+  {
+    "id": "a100000000000004",
+    "type": "mqtt in",
+    "z": "a100000000000001",
+    "name": "Temperature in",
+    "x": 130,
+    "y": 140,
+    "wires": [
+      [
+        "a100000000000005"
+      ]
+    ],
+    "topic": "lab/room1/temperature",
+    "qos": "1",
+    "datatype": "utf8",
+    "broker": "a100000000000002",
+    "nl": false,
+    "rap": true,
+    "rh": 0,
+    "inputs": 0
+  },
+  {
+    "id": "a100000000000005",
+    "type": "json",
+    "z": "a100000000000001",
+    "name": "Parse temperature JSON",
+    "x": 370,
+    "y": 140,
+    "wires": [
+      [
+        "a100000000000006",
+        "a100000000000008"
+      ]
+    ],
+    "property": "payload",
+    "action": "obj",
+    "pretty": false
+  },
+  {
+    "id": "a100000000000006",
+    "type": "function",
+    "z": "a100000000000001",
+    "name": "Fan controller",
+    "x": 610,
+    "y": 140,
+    "wires": [
+      [
+        "a100000000000007"
+      ]
+    ],
+    "func": "// Input is an object produced by the JSON node.\nconst data = msg.payload;\nif (!data || typeof data.temperature !== \"number\" || !Number.isFinite(data.temperature)) {\n    node.warn(\"Expected JSON with a finite numeric temperature\");\n    return null;\n}\n// Two thresholds prevent rapid ON/OFF changes near one temperature.\nlet state = context.get(\"fan\") || \"OFF\";\nif (data.temperature >= 28) state = \"ON\";\nelse if (data.temperature <= 26) state = \"OFF\";\ncontext.set(\"fan\", state);\n// Send a current command for every reading. Commands are not retained.\nmsg.topic = \"lab/room1/fan/set\";\nmsg.payload = state;\nreturn msg;",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": []
+  },
+  {
+    "id": "a100000000000007",
+    "type": "mqtt out",
+    "z": "a100000000000001",
+    "name": "Fan command out",
+    "x": 850,
+    "y": 140,
+    "wires": [],
+    "topic": "lab/room1/fan/set",
+    "qos": "1",
+    "retain": "false",
+    "respTopic": "",
+    "contentType": "",
+    "userProps": "",
+    "correl": "",
+    "expiry": "",
+    "broker": "a100000000000002"
+  },
+  {
+    "id": "a100000000000008",
+    "type": "debug",
+    "z": "a100000000000001",
+    "name": "Temperature readings",
+    "x": 610,
+    "y": 210,
+    "wires": [],
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "tostatus": false,
+    "complete": "payload",
+    "targetType": "msg",
+    "statusVal": "",
+    "statusType": "auto"
+  },
+  {
+    "id": "a100000000000009",
+    "type": "inject",
+    "z": "a100000000000001",
+    "name": "Manual fan ON",
+    "x": 130,
+    "y": 290,
+    "wires": [
+      [
+        "a100000000000007"
+      ]
+    ],
+    "props": [
+      {
+        "p": "payload"
+      },
+      {
+        "p": "topic",
+        "vt": "str"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "onceDelay": 0.1,
+    "topic": "lab/room1/fan/set",
+    "payload": "ON",
+    "payloadType": "str"
+  },
+  {
+    "id": "a10000000000000a",
+    "type": "inject",
+    "z": "a100000000000001",
+    "name": "Manual fan OFF",
+    "x": 130,
+    "y": 350,
+    "wires": [
+      [
+        "a100000000000007"
+      ]
+    ],
+    "props": [
+      {
+        "p": "payload"
+      },
+      {
+        "p": "topic",
+        "vt": "str"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "onceDelay": 0.1,
+    "topic": "lab/room1/fan/set",
+    "payload": "OFF",
+    "payloadType": "str"
+  },
+  {
+    "id": "a10000000000000b",
+    "type": "mqtt in",
+    "z": "a100000000000001",
+    "name": "Fan commands in",
+    "x": 140,
+    "y": 440,
+    "wires": [
+      [
+        "a10000000000000c"
+      ]
+    ],
+    "topic": "lab/room1/fan/set",
+    "qos": "1",
+    "datatype": "utf8",
+    "broker": "a100000000000002",
+    "nl": false,
+    "rap": true,
+    "rh": 0,
+    "inputs": 0
+  },
+  {
+    "id": "a10000000000000c",
+    "type": "debug",
+    "z": "a100000000000001",
+    "name": "Observed fan commands",
+    "x": 450,
+    "y": 440,
+    "wires": [],
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "tostatus": false,
+    "complete": "payload",
+    "targetType": "msg",
+    "statusVal": "",
+    "statusType": "auto"
+  },
+  {
+    "id": "a10000000000000d",
+    "type": "mqtt in",
+    "z": "a100000000000001",
+    "name": "Fan state in",
+    "x": 130,
+    "y": 510,
+    "wires": [
+      [
+        "a10000000000000e"
+      ]
+    ],
+    "topic": "lab/room1/fan/state",
+    "qos": "1",
+    "datatype": "utf8",
+    "broker": "a100000000000002",
+    "nl": false,
+    "rap": true,
+    "rh": 0,
+    "inputs": 0
+  },
+  {
+    "id": "a10000000000000e",
+    "type": "debug",
+    "z": "a100000000000001",
+    "name": "Virtual fan state",
+    "x": 430,
+    "y": 510,
+    "wires": [],
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "tostatus": false,
+    "complete": "payload",
+    "targetType": "msg",
+    "statusVal": "",
+    "statusType": "auto"
+  },
+  {
+    "id": "a10000000000000f",
+    "type": "catch",
+    "z": "a100000000000001",
+    "name": "Flow errors",
+    "x": 120,
+    "y": 580,
+    "wires": [
+      [
+        "a100000000000010"
+      ]
+    ],
+    "scope": null,
+    "uncaught": false
+  },
+  {
+    "id": "a100000000000010",
+    "type": "debug",
+    "z": "a100000000000001",
+    "name": "Flow error details",
+    "x": 430,
+    "y": 580,
+    "wires": [],
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "tostatus": false,
+    "complete": "true",
+    "targetType": "full",
+    "statusVal": "",
+    "statusType": "auto"
+  }
+]

@@ -1,0 +1,22 @@
+[
+    {
+        "id": "c200000000000006",
+        "type": "function",
+        "z": "c200000000000001",
+        "name": "Proximity controller",
+        "func": "const data = msg.payload;\nif (!data || data.valid !== true || data.unit !== \"mm\" ||\n    typeof data.distance_mm !== \"number\" || !Number.isFinite(data.distance_mm) ||\n    data.distance_mm < 0 || data.distance_mm > 1200) {\n    node.warn(\"Expected valid JSON with numeric distance_mm from 0 to 1200 and unit mm\");\n    return null;\n}\nif (flow.get(\"auto\") !== true) return null;\nlet state = flow.get(\"fan_state\") || context.get(\"fan\") || \"OFF\";\nif (data.distance_mm <= 10) state = \"OFF\";\nelse if (data.distance_mm >= 30) state = \"ON\";\ncontext.set(\"fan\", state);\nmsg.topic = \"lab/room1/fan/set\";\nmsg.payload = state;\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 610,
+        "y": 100,
+        "wires": [
+            [
+                "c200000000000007"
+            ]
+        ]
+    }
+]
