@@ -1,0 +1,729 @@
+[
+  {
+    "id": "c200000000000001",
+    "type": "tab",
+    "label": "Room 1 distance testbed",
+    "disabled": false,
+    "info": "Distance in mm; LED stand-in for fan. Manual is default. Automatic ON <=200 mm and OFF >=300 mm. Disable earlier controller flows before deploying.",
+    "wires": []
+  },
+  {
+    "id": "c200000000000002",
+    "type": "mqtt-broker",
+    "name": "Mosquitto in Docker",
+    "broker": "mosquitto",
+    "port": "1883",
+    "clientid": "node-red-room1-distance",
+    "autoConnect": true,
+    "usetls": false,
+    "protocolVersion": "4",
+    "keepalive": "60",
+    "cleansession": true,
+    "autoUnsubscribe": true,
+    "birthTopic": "",
+    "birthQos": "0",
+    "birthPayload": "",
+    "birthMsg": {},
+    "closeTopic": "",
+    "closeQos": "0",
+    "closePayload": "",
+    "closeMsg": {},
+    "willTopic": "",
+    "willQos": "0",
+    "willPayload": "",
+    "willMsg": {},
+    "wires": []
+  },
+  {
+    "id": "c200000000000003",
+    "type": "comment",
+    "z": "c200000000000001",
+    "name": "Manual mode by default; enable Automatic control on the dashboard",
+    "x": 350,
+    "y": 60,
+    "wires": [],
+    "info": "Dashboard /distance-lab/room1 shows distance in mm, reported LED state, manual/automatic controls and hardware MQTT status. Automatic mode disables the manual switch."
+  },
+  {
+    "id": "c200000000000004",
+    "type": "mqtt in",
+    "z": "c200000000000001",
+    "name": "Distance in",
+    "x": 130,
+    "y": 140,
+    "wires": [
+      [
+        "c200000000000005"
+      ]
+    ],
+    "topic": "lab/room1/distance",
+    "qos": "1",
+    "datatype": "utf8",
+    "broker": "c200000000000002",
+    "nl": false,
+    "rap": true,
+    "rh": 0,
+    "inputs": 0
+  },
+  {
+    "id": "c200000000000005",
+    "type": "json",
+    "z": "c200000000000001",
+    "name": "Parse temperature JSON",
+    "x": 370,
+    "y": 140,
+    "wires": [
+      [
+        "c200000000000006",
+        "c200000000000008",
+        "c200000000000020"
+      ]
+    ],
+    "property": "payload",
+    "action": "obj",
+    "pretty": false
+  },
+  {
+    "id": "c200000000000006",
+    "type": "function",
+    "z": "c200000000000001",
+    "name": "Proximity controller",
+    "x": 610,
+    "y": 140,
+    "wires": [
+      [
+        "c200000000000007"
+      ]
+    ],
+    "func": "const data = msg.payload;\nif (!data || data.valid !== true || data.unit !== \"mm\" ||\n    typeof data.distance_mm !== \"number\" || !Number.isFinite(data.distance_mm) ||\n    data.distance_mm < 0 || data.distance_mm > 1200) {\n    node.warn(\"Expected valid JSON with numeric distance_mm from 0 to 1200 and unit mm\");\n    return null;\n}\nif (flow.get(\"auto\") !== true) return null;\nlet state = flow.get(\"fan_state\") || context.get(\"fan\") || \"OFF\";\nif (data.distance_mm <= 200) state = \"ON\";\nelse if (data.distance_mm >= 300) state = \"OFF\";\ncontext.set(\"fan\", state);\nmsg.topic = \"lab/room1/fan/set\";\nmsg.payload = state;\nreturn msg;",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": []
+  },
+  {
+    "id": "c200000000000007",
+    "type": "mqtt out",
+    "z": "c200000000000001",
+    "name": "Fan command out",
+    "x": 850,
+    "y": 140,
+    "wires": [],
+    "topic": "lab/room1/fan/set",
+    "qos": "1",
+    "retain": "false",
+    "respTopic": "",
+    "contentType": "",
+    "userProps": "",
+    "correl": "",
+    "expiry": "",
+    "broker": "c200000000000002"
+  },
+  {
+    "id": "c200000000000008",
+    "type": "debug",
+    "z": "c200000000000001",
+    "name": "Temperature readings",
+    "x": 610,
+    "y": 210,
+    "wires": [],
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "tostatus": false,
+    "complete": "payload",
+    "targetType": "msg",
+    "statusVal": "",
+    "statusType": "auto"
+  },
+  {
+    "id": "c200000000000009",
+    "type": "inject",
+    "z": "c200000000000001",
+    "name": "Manual LED ON",
+    "x": 130,
+    "y": 290,
+    "wires": [
+      [
+        "c200000000000027"
+      ]
+    ],
+    "props": [
+      {
+        "p": "payload"
+      },
+      {
+        "p": "topic",
+        "vt": "str"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "onceDelay": 0.1,
+    "topic": "lab/room1/fan/set",
+    "payload": "ON",
+    "payloadType": "str"
+  },
+  {
+    "id": "c20000000000000a",
+    "type": "inject",
+    "z": "c200000000000001",
+    "name": "Manual LED OFF",
+    "x": 130,
+    "y": 350,
+    "wires": [
+      [
+        "c200000000000027"
+      ]
+    ],
+    "props": [
+      {
+        "p": "payload"
+      },
+      {
+        "p": "topic",
+        "vt": "str"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "onceDelay": 0.1,
+    "topic": "lab/room1/fan/set",
+    "payload": "OFF",
+    "payloadType": "str"
+  },
+  {
+    "id": "c20000000000000b",
+    "type": "mqtt in",
+    "z": "c200000000000001",
+    "name": "Fan commands in",
+    "x": 140,
+    "y": 440,
+    "wires": [
+      [
+        "c20000000000000c"
+      ]
+    ],
+    "topic": "lab/room1/fan/set",
+    "qos": "1",
+    "datatype": "utf8",
+    "broker": "c200000000000002",
+    "nl": false,
+    "rap": true,
+    "rh": 0,
+    "inputs": 0
+  },
+  {
+    "id": "c20000000000000c",
+    "type": "debug",
+    "z": "c200000000000001",
+    "name": "Observed fan commands",
+    "x": 450,
+    "y": 440,
+    "wires": [],
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "tostatus": false,
+    "complete": "payload",
+    "targetType": "msg",
+    "statusVal": "",
+    "statusType": "auto"
+  },
+  {
+    "id": "c20000000000000d",
+    "type": "mqtt in",
+    "z": "c200000000000001",
+    "name": "Fan state in",
+    "x": 130,
+    "y": 510,
+    "wires": [
+      [
+        "c20000000000000e",
+        "c200000000000028"
+      ]
+    ],
+    "topic": "lab/room1/fan/state",
+    "qos": "1",
+    "datatype": "utf8",
+    "broker": "c200000000000002",
+    "nl": false,
+    "rap": true,
+    "rh": 0,
+    "inputs": 0
+  },
+  {
+    "id": "c20000000000000e",
+    "type": "debug",
+    "z": "c200000000000001",
+    "name": "Virtual fan state",
+    "x": 430,
+    "y": 510,
+    "wires": [],
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "tostatus": false,
+    "complete": "payload",
+    "targetType": "msg",
+    "statusVal": "",
+    "statusType": "auto"
+  },
+  {
+    "id": "c20000000000000f",
+    "type": "catch",
+    "z": "c200000000000001",
+    "name": "Flow errors",
+    "x": 120,
+    "y": 580,
+    "wires": [
+      [
+        "c200000000000010"
+      ]
+    ],
+    "scope": null,
+    "uncaught": false
+  },
+  {
+    "id": "c200000000000010",
+    "type": "debug",
+    "z": "c200000000000001",
+    "name": "Flow error details",
+    "x": 430,
+    "y": 580,
+    "wires": [],
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "tostatus": false,
+    "complete": "true",
+    "targetType": "full",
+    "statusVal": "",
+    "statusType": "auto"
+  },
+  {
+    "id": "c200000000000020",
+    "type": "function",
+    "z": "c200000000000001",
+    "name": "Format sensor value",
+    "x": 360,
+    "y": 660,
+    "wires": [
+      [
+        "c200000000000021"
+      ]
+    ],
+    "func": "const data = msg.payload;\nif (!data || data.valid !== true || data.unit !== \"mm\" ||\n    typeof data.distance_mm !== \"number\" || !Number.isFinite(data.distance_mm) ||\n    data.distance_mm < 0 || data.distance_mm > 1200) return null;\nmsg.payload = data.distance_mm.toFixed(0) + \" mm\";\nreturn msg;",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": []
+  },
+  {
+    "id": "c200000000000021",
+    "type": "ui-text",
+    "z": "c200000000000001",
+    "name": "Distance display",
+    "x": 650,
+    "y": 660,
+    "wires": [],
+    "group": "c200000000000033",
+    "order": 1,
+    "width": 6,
+    "height": 1,
+    "label": "Distance",
+    "layout": "row-spread",
+    "style": false,
+    "font": "Helvetica",
+    "fontSize": 22,
+    "color": "#1e293b",
+    "wrapText": false,
+    "className": "",
+    "value": "payload",
+    "valueType": "msg"
+  },
+  {
+    "id": "c200000000000022",
+    "type": "ui-text",
+    "z": "c200000000000001",
+    "name": "LED state display",
+    "x": 650,
+    "y": 720,
+    "wires": [],
+    "group": "c200000000000033",
+    "order": 2,
+    "width": 6,
+    "height": 1,
+    "label": "Reported LED state",
+    "layout": "row-spread",
+    "style": false,
+    "font": "Helvetica",
+    "fontSize": 22,
+    "color": "#1e293b",
+    "wrapText": false,
+    "className": "",
+    "value": "payload",
+    "valueType": "msg"
+  },
+  {
+    "id": "c200000000000023",
+    "type": "ui-text",
+    "z": "c200000000000001",
+    "name": "Control mode display",
+    "x": 650,
+    "y": 780,
+    "wires": [],
+    "group": "c200000000000033",
+    "order": 3,
+    "width": 6,
+    "height": 1,
+    "label": "Control mode",
+    "layout": "row-spread",
+    "style": false,
+    "font": "Helvetica",
+    "fontSize": 22,
+    "color": "#1e293b",
+    "wrapText": false,
+    "className": "",
+    "value": "payload",
+    "valueType": "msg"
+  },
+  {
+    "id": "c200000000000024",
+    "type": "ui-switch",
+    "z": "c200000000000001",
+    "name": "LED ON/OFF",
+    "x": 140,
+    "y": 900,
+    "wires": [
+      [
+        "c200000000000027"
+      ]
+    ],
+    "group": "c200000000000033",
+    "order": 4,
+    "width": 6,
+    "height": 1,
+    "label": "LED ON / OFF",
+    "passthru": false,
+    "decouple": false,
+    "topic": "",
+    "topicType": "str",
+    "style": "",
+    "className": "",
+    "layout": "row-spread",
+    "clickableArea": "switch",
+    "onvalue": "ON",
+    "onvalueType": "str",
+    "onicon": "",
+    "oncolor": "",
+    "offvalue": "OFF",
+    "offvalueType": "str",
+    "officon": "",
+    "offcolor": ""
+  },
+  {
+    "id": "c200000000000025",
+    "type": "ui-switch",
+    "z": "c200000000000001",
+    "name": "Automatic control",
+    "x": 140,
+    "y": 980,
+    "wires": [
+      [
+        "c200000000000026"
+      ]
+    ],
+    "group": "c200000000000033",
+    "order": 5,
+    "width": 6,
+    "height": 1,
+    "label": "Automatic control",
+    "passthru": false,
+    "decouple": false,
+    "topic": "",
+    "topicType": "str",
+    "style": "",
+    "className": "",
+    "layout": "row-spread",
+    "clickableArea": "switch",
+    "onvalue": "true",
+    "onvalueType": "bool",
+    "onicon": "",
+    "oncolor": "",
+    "offvalue": "false",
+    "offvalueType": "bool",
+    "officon": "",
+    "offcolor": ""
+  },
+  {
+    "id": "c200000000000026",
+    "type": "function",
+    "z": "c200000000000001",
+    "name": "Set control mode",
+    "x": 390,
+    "y": 980,
+    "wires": [
+      [
+        "c200000000000023"
+      ],
+      [
+        "c200000000000024"
+      ]
+    ],
+    "func": "const automatic = msg.payload === true;\nflow.set(\"auto\", automatic);\nreturn [\n    {payload: automatic ? \"AUTO\" : \"MANUAL\"},\n    {payload: flow.get(\"fan_state\") || \"OFF\", enabled: !automatic}\n];",
+    "outputs": 2,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": []
+  },
+  {
+    "id": "c200000000000027",
+    "type": "function",
+    "z": "c200000000000001",
+    "name": "Manual command guard",
+    "x": 390,
+    "y": 900,
+    "wires": [
+      [
+        "c200000000000007"
+      ]
+    ],
+    "func": "if (flow.get(\"auto\") === true) {\n    node.warn(\"Disable Automatic control before sending manual commands\");\n    return null;\n}\nif (msg.payload !== \"ON\" && msg.payload !== \"OFF\") return null;\nmsg.topic = \"lab/room1/fan/set\";\nreturn msg;",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": []
+  },
+  {
+    "id": "c200000000000028",
+    "type": "function",
+    "z": "c200000000000001",
+    "name": "Reported fan feedback",
+    "x": 370,
+    "y": 720,
+    "wires": [
+      [
+        "c200000000000022"
+      ],
+      [
+        "c200000000000024"
+      ]
+    ],
+    "func": "if (msg.payload !== \"ON\" && msg.payload !== \"OFF\") return null;\nflow.set(\"fan_state\", msg.payload);\nreturn [msg, {payload: msg.payload, enabled: flow.get(\"auto\") !== true}];",
+    "outputs": 2,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": []
+  },
+  {
+    "id": "c200000000000029",
+    "type": "inject",
+    "z": "c200000000000001",
+    "name": "Start in manual mode",
+    "x": 140,
+    "y": 1060,
+    "wires": [
+      [
+        "c200000000000026",
+        "c200000000000025"
+      ]
+    ],
+    "props": [
+      {
+        "p": "payload"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": true,
+    "onceDelay": 0.5,
+    "topic": "",
+    "payload": "false",
+    "payloadType": "bool"
+  },
+  {
+    "id": "c200000000000030",
+    "type": "ui-base",
+    "name": "Distance Lab",
+    "path": "/distance-lab",
+    "appIcon": "",
+    "includeClientData": true,
+    "acceptsClientConfig": [
+      "ui-switch",
+      "ui-text"
+    ],
+    "showPathInSidebar": false,
+    "headerContent": "page",
+    "navigationStyle": "default",
+    "titleBarStyle": "default",
+    "showReconnectNotification": true,
+    "notificationDisplayTime": 3,
+    "showDisconnectNotification": true,
+    "allowInstall": false
+  },
+  {
+    "id": "c200000000000031",
+    "type": "ui-page",
+    "name": "Room 1 distance",
+    "ui": "c200000000000030",
+    "path": "/room1",
+    "icon": "ruler",
+    "layout": "grid",
+    "theme": "c200000000000032",
+    "breakpoints": [
+      {
+        "name": "Default",
+        "px": 0,
+        "cols": 3
+      },
+      {
+        "name": "Tablet",
+        "px": 576,
+        "cols": 6
+      },
+      {
+        "name": "Desktop",
+        "px": 1024,
+        "cols": 12
+      }
+    ],
+    "order": 1,
+    "className": "",
+    "visible": "true",
+    "disabled": "false"
+  },
+  {
+    "id": "c200000000000032",
+    "type": "ui-theme",
+    "name": "Lab light",
+    "colors": {
+      "surface": "#ffffff",
+      "primary": "#2563eb",
+      "bgPage": "#f1f5f9",
+      "groupBg": "#ffffff",
+      "groupOutline": "#cbd5e1"
+    },
+    "sizes": {
+      "pagePadding": "16px",
+      "groupGap": "16px",
+      "groupBorderRadius": "8px",
+      "widgetGap": "12px",
+      "density": "comfortable"
+    }
+  },
+  {
+    "id": "c200000000000033",
+    "type": "ui-group",
+    "name": "Distance and LED control",
+    "page": "c200000000000031",
+    "width": 6,
+    "height": 1,
+    "order": 1,
+    "showTitle": true,
+    "className": "",
+    "visible": "true",
+    "disabled": "false",
+    "groupType": "default"
+  },
+  {
+    "id": "c200000000000040",
+    "type": "mqtt in",
+    "z": "c200000000000001",
+    "name": "Sensor status",
+    "topic": "lab/room1/sensor/status",
+    "qos": "1",
+    "datatype": "utf8",
+    "broker": "c200000000000002",
+    "nl": false,
+    "rap": true,
+    "rh": 0,
+    "inputs": 0,
+    "x": 130,
+    "y": 1100,
+    "wires": [
+      [
+        "c200000000000041"
+      ]
+    ]
+  },
+  {
+    "id": "c200000000000041",
+    "type": "ui-text",
+    "z": "c200000000000001",
+    "name": "Sensor connectivity",
+    "x": 650,
+    "y": 1100,
+    "wires": [],
+    "group": "c200000000000033",
+    "order": 6,
+    "width": 6,
+    "height": 1,
+    "label": "Sensor MQTT status",
+    "layout": "row-spread",
+    "style": false,
+    "font": "Helvetica",
+    "fontSize": 22,
+    "color": "#1e293b",
+    "wrapText": false,
+    "className": "",
+    "value": "payload",
+    "valueType": "msg"
+  },
+  {
+    "id": "c200000000000042",
+    "type": "mqtt in",
+    "z": "c200000000000001",
+    "name": "Actuator status",
+    "topic": "lab/room1/actuator/status",
+    "qos": "1",
+    "datatype": "utf8",
+    "broker": "c200000000000002",
+    "nl": false,
+    "rap": true,
+    "rh": 0,
+    "inputs": 0,
+    "x": 130,
+    "y": 1170,
+    "wires": [
+      [
+        "c200000000000043"
+      ]
+    ]
+  },
+  {
+    "id": "c200000000000043",
+    "type": "ui-text",
+    "z": "c200000000000001",
+    "name": "Actuator connectivity",
+    "x": 650,
+    "y": 1170,
+    "wires": [],
+    "group": "c200000000000033",
+    "order": 7,
+    "width": 6,
+    "height": 1,
+    "label": "Actuator MQTT status",
+    "layout": "row-spread",
+    "style": false,
+    "font": "Helvetica",
+    "fontSize": 22,
+    "color": "#1e293b",
+    "wrapText": false,
+    "className": "",
+    "value": "payload",
+    "valueType": "msg"
+  }
+]

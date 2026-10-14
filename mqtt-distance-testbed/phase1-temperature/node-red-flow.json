@@ -1,0 +1,641 @@
+[
+  {
+    "id": "b100000000000001",
+    "type": "tab",
+    "label": "Room 1 dashboard lab",
+    "disabled": false,
+    "info": "Dashboard at /dashboard/room1. Manual mode is the default; enable Automatic control for ON >=28 C and OFF <=26 C. Disable the original Room 1 software lab tab before deploying this version.",
+    "wires": []
+  },
+  {
+    "id": "b100000000000002",
+    "type": "mqtt-broker",
+    "name": "Mosquitto in Docker",
+    "broker": "mosquitto",
+    "port": "1883",
+    "clientid": "node-red-room1-dashboard",
+    "autoConnect": true,
+    "usetls": false,
+    "protocolVersion": "4",
+    "keepalive": "60",
+    "cleansession": true,
+    "autoUnsubscribe": true,
+    "birthTopic": "",
+    "birthQos": "0",
+    "birthPayload": "",
+    "birthMsg": {},
+    "closeTopic": "",
+    "closeQos": "0",
+    "closePayload": "",
+    "closeMsg": {},
+    "willTopic": "",
+    "willQos": "0",
+    "willPayload": "",
+    "willMsg": {},
+    "wires": []
+  },
+  {
+    "id": "b100000000000003",
+    "type": "comment",
+    "z": "b100000000000001",
+    "name": "Manual mode by default; enable Automatic control on the dashboard",
+    "x": 350,
+    "y": 60,
+    "wires": [],
+    "info": "Dashboard /dashboard/room1 shows temperature, reported fan state, and a fan switch. Automatic control disables the manual switch to prevent conflicting commands."
+  },
+  {
+    "id": "b100000000000004",
+    "type": "mqtt in",
+    "z": "b100000000000001",
+    "name": "Temperature in",
+    "x": 130,
+    "y": 140,
+    "wires": [
+      [
+        "b100000000000005"
+      ]
+    ],
+    "topic": "lab/room1/temperature",
+    "qos": "1",
+    "datatype": "utf8",
+    "broker": "b100000000000002",
+    "nl": false,
+    "rap": true,
+    "rh": 0,
+    "inputs": 0
+  },
+  {
+    "id": "b100000000000005",
+    "type": "json",
+    "z": "b100000000000001",
+    "name": "Parse temperature JSON",
+    "x": 370,
+    "y": 140,
+    "wires": [
+      [
+        "b100000000000006",
+        "b100000000000008",
+        "b100000000000020"
+      ]
+    ],
+    "property": "payload",
+    "action": "obj",
+    "pretty": false
+  },
+  {
+    "id": "b100000000000006",
+    "type": "function",
+    "z": "b100000000000001",
+    "name": "Fan controller",
+    "x": 610,
+    "y": 140,
+    "wires": [
+      [
+        "b100000000000007"
+      ]
+    ],
+    "func": "const data = msg.payload;\nif (!data || typeof data.temperature !== \"number\" || !Number.isFinite(data.temperature)) {\n    node.warn(\"Expected JSON with a finite numeric temperature\");\n    return null;\n}\nif (flow.get(\"auto\") !== true) return null;\nlet state = flow.get(\"fan_state\") || context.get(\"fan\") || \"OFF\";\nif (data.temperature >= 28) state = \"ON\";\nelse if (data.temperature <= 26) state = \"OFF\";\ncontext.set(\"fan\", state);\nmsg.topic = \"lab/room1/fan/set\";\nmsg.payload = state;\nreturn msg;",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": []
+  },
+  {
+    "id": "b100000000000007",
+    "type": "mqtt out",
+    "z": "b100000000000001",
+    "name": "Fan command out",
+    "x": 850,
+    "y": 140,
+    "wires": [],
+    "topic": "lab/room1/fan/set",
+    "qos": "1",
+    "retain": "false",
+    "respTopic": "",
+    "contentType": "",
+    "userProps": "",
+    "correl": "",
+    "expiry": "",
+    "broker": "b100000000000002"
+  },
+  {
+    "id": "b100000000000008",
+    "type": "debug",
+    "z": "b100000000000001",
+    "name": "Temperature readings",
+    "x": 610,
+    "y": 210,
+    "wires": [],
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "tostatus": false,
+    "complete": "payload",
+    "targetType": "msg",
+    "statusVal": "",
+    "statusType": "auto"
+  },
+  {
+    "id": "b100000000000009",
+    "type": "inject",
+    "z": "b100000000000001",
+    "name": "Manual fan ON",
+    "x": 130,
+    "y": 290,
+    "wires": [
+      [
+        "b100000000000027"
+      ]
+    ],
+    "props": [
+      {
+        "p": "payload"
+      },
+      {
+        "p": "topic",
+        "vt": "str"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "onceDelay": 0.1,
+    "topic": "lab/room1/fan/set",
+    "payload": "ON",
+    "payloadType": "str"
+  },
+  {
+    "id": "b10000000000000a",
+    "type": "inject",
+    "z": "b100000000000001",
+    "name": "Manual fan OFF",
+    "x": 130,
+    "y": 350,
+    "wires": [
+      [
+        "b100000000000027"
+      ]
+    ],
+    "props": [
+      {
+        "p": "payload"
+      },
+      {
+        "p": "topic",
+        "vt": "str"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "onceDelay": 0.1,
+    "topic": "lab/room1/fan/set",
+    "payload": "OFF",
+    "payloadType": "str"
+  },
+  {
+    "id": "b10000000000000b",
+    "type": "mqtt in",
+    "z": "b100000000000001",
+    "name": "Fan commands in",
+    "x": 140,
+    "y": 440,
+    "wires": [
+      [
+        "b10000000000000c"
+      ]
+    ],
+    "topic": "lab/room1/fan/set",
+    "qos": "1",
+    "datatype": "utf8",
+    "broker": "b100000000000002",
+    "nl": false,
+    "rap": true,
+    "rh": 0,
+    "inputs": 0
+  },
+  {
+    "id": "b10000000000000c",
+    "type": "debug",
+    "z": "b100000000000001",
+    "name": "Observed fan commands",
+    "x": 450,
+    "y": 440,
+    "wires": [],
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "tostatus": false,
+    "complete": "payload",
+    "targetType": "msg",
+    "statusVal": "",
+    "statusType": "auto"
+  },
+  {
+    "id": "b10000000000000d",
+    "type": "mqtt in",
+    "z": "b100000000000001",
+    "name": "Fan state in",
+    "x": 130,
+    "y": 510,
+    "wires": [
+      [
+        "b10000000000000e",
+        "b100000000000028"
+      ]
+    ],
+    "topic": "lab/room1/fan/state",
+    "qos": "1",
+    "datatype": "utf8",
+    "broker": "b100000000000002",
+    "nl": false,
+    "rap": true,
+    "rh": 0,
+    "inputs": 0
+  },
+  {
+    "id": "b10000000000000e",
+    "type": "debug",
+    "z": "b100000000000001",
+    "name": "Virtual fan state",
+    "x": 430,
+    "y": 510,
+    "wires": [],
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "tostatus": false,
+    "complete": "payload",
+    "targetType": "msg",
+    "statusVal": "",
+    "statusType": "auto"
+  },
+  {
+    "id": "b10000000000000f",
+    "type": "catch",
+    "z": "b100000000000001",
+    "name": "Flow errors",
+    "x": 120,
+    "y": 580,
+    "wires": [
+      [
+        "b100000000000010"
+      ]
+    ],
+    "scope": null,
+    "uncaught": false
+  },
+  {
+    "id": "b100000000000010",
+    "type": "debug",
+    "z": "b100000000000001",
+    "name": "Flow error details",
+    "x": 430,
+    "y": 580,
+    "wires": [],
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "tostatus": false,
+    "complete": "true",
+    "targetType": "full",
+    "statusVal": "",
+    "statusType": "auto"
+  },
+  {
+    "id": "b100000000000020",
+    "type": "function",
+    "z": "b100000000000001",
+    "name": "Format sensor value",
+    "x": 360,
+    "y": 660,
+    "wires": [
+      [
+        "b100000000000021"
+      ]
+    ],
+    "func": "const value = msg.payload && msg.payload.temperature;\nif (typeof value !== \"number\" || !Number.isFinite(value)) return null;\nmsg.payload = value.toFixed(1) + \" °C\";\nreturn msg;",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": []
+  },
+  {
+    "id": "b100000000000021",
+    "type": "ui-text",
+    "z": "b100000000000001",
+    "name": "Temperature display",
+    "x": 650,
+    "y": 660,
+    "wires": [],
+    "group": "b100000000000033",
+    "order": 1,
+    "width": 6,
+    "height": 1,
+    "label": "Temperature",
+    "layout": "row-spread",
+    "style": false,
+    "font": "Helvetica",
+    "fontSize": 22,
+    "color": "#1e293b",
+    "wrapText": false,
+    "className": "",
+    "value": "payload",
+    "valueType": "msg"
+  },
+  {
+    "id": "b100000000000022",
+    "type": "ui-text",
+    "z": "b100000000000001",
+    "name": "Fan state display",
+    "x": 650,
+    "y": 720,
+    "wires": [],
+    "group": "b100000000000033",
+    "order": 2,
+    "width": 6,
+    "height": 1,
+    "label": "Reported fan state",
+    "layout": "row-spread",
+    "style": false,
+    "font": "Helvetica",
+    "fontSize": 22,
+    "color": "#1e293b",
+    "wrapText": false,
+    "className": "",
+    "value": "payload",
+    "valueType": "msg"
+  },
+  {
+    "id": "b100000000000023",
+    "type": "ui-text",
+    "z": "b100000000000001",
+    "name": "Control mode display",
+    "x": 650,
+    "y": 780,
+    "wires": [],
+    "group": "b100000000000033",
+    "order": 3,
+    "width": 6,
+    "height": 1,
+    "label": "Control mode",
+    "layout": "row-spread",
+    "style": false,
+    "font": "Helvetica",
+    "fontSize": 22,
+    "color": "#1e293b",
+    "wrapText": false,
+    "className": "",
+    "value": "payload",
+    "valueType": "msg"
+  },
+  {
+    "id": "b100000000000024",
+    "type": "ui-switch",
+    "z": "b100000000000001",
+    "name": "Fan ON/OFF",
+    "x": 140,
+    "y": 900,
+    "wires": [
+      [
+        "b100000000000027"
+      ]
+    ],
+    "group": "b100000000000033",
+    "order": 4,
+    "width": 6,
+    "height": 1,
+    "label": "Fan ON / OFF",
+    "passthru": false,
+    "decouple": false,
+    "topic": "",
+    "topicType": "str",
+    "style": "",
+    "className": "",
+    "layout": "row-spread",
+    "clickableArea": "switch",
+    "onvalue": "ON",
+    "onvalueType": "str",
+    "onicon": "",
+    "oncolor": "",
+    "offvalue": "OFF",
+    "offvalueType": "str",
+    "officon": "",
+    "offcolor": ""
+  },
+  {
+    "id": "b100000000000025",
+    "type": "ui-switch",
+    "z": "b100000000000001",
+    "name": "Automatic control",
+    "x": 140,
+    "y": 980,
+    "wires": [
+      [
+        "b100000000000026"
+      ]
+    ],
+    "group": "b100000000000033",
+    "order": 5,
+    "width": 6,
+    "height": 1,
+    "label": "Automatic control",
+    "passthru": false,
+    "decouple": false,
+    "topic": "",
+    "topicType": "str",
+    "style": "",
+    "className": "",
+    "layout": "row-spread",
+    "clickableArea": "switch",
+    "onvalue": "true",
+    "onvalueType": "bool",
+    "onicon": "",
+    "oncolor": "",
+    "offvalue": "false",
+    "offvalueType": "bool",
+    "officon": "",
+    "offcolor": ""
+  },
+  {
+    "id": "b100000000000026",
+    "type": "function",
+    "z": "b100000000000001",
+    "name": "Set control mode",
+    "x": 390,
+    "y": 980,
+    "wires": [
+      [
+        "b100000000000023"
+      ],
+      [
+        "b100000000000024"
+      ]
+    ],
+    "func": "const automatic = msg.payload === true;\nflow.set(\"auto\", automatic);\nreturn [\n    {payload: automatic ? \"AUTO\" : \"MANUAL\"},\n    {payload: flow.get(\"fan_state\") || \"OFF\", enabled: !automatic}\n];",
+    "outputs": 2,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": []
+  },
+  {
+    "id": "b100000000000027",
+    "type": "function",
+    "z": "b100000000000001",
+    "name": "Manual command guard",
+    "x": 390,
+    "y": 900,
+    "wires": [
+      [
+        "b100000000000007"
+      ]
+    ],
+    "func": "if (flow.get(\"auto\") === true) {\n    node.warn(\"Disable Automatic control before sending manual commands\");\n    return null;\n}\nif (msg.payload !== \"ON\" && msg.payload !== \"OFF\") return null;\nmsg.topic = \"lab/room1/fan/set\";\nreturn msg;",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": []
+  },
+  {
+    "id": "b100000000000028",
+    "type": "function",
+    "z": "b100000000000001",
+    "name": "Reported fan feedback",
+    "x": 370,
+    "y": 720,
+    "wires": [
+      [
+        "b100000000000022"
+      ],
+      [
+        "b100000000000024"
+      ]
+    ],
+    "func": "if (msg.payload !== \"ON\" && msg.payload !== \"OFF\") return null;\nflow.set(\"fan_state\", msg.payload);\nreturn [msg, {payload: msg.payload, enabled: flow.get(\"auto\") !== true}];",
+    "outputs": 2,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": []
+  },
+  {
+    "id": "b100000000000029",
+    "type": "inject",
+    "z": "b100000000000001",
+    "name": "Start in manual mode",
+    "x": 140,
+    "y": 1060,
+    "wires": [
+      [
+        "b100000000000026",
+        "b100000000000025"
+      ]
+    ],
+    "props": [
+      {
+        "p": "payload"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": true,
+    "onceDelay": 0.5,
+    "topic": "",
+    "payload": "false",
+    "payloadType": "bool"
+  },
+  {
+    "id": "b100000000000030",
+    "type": "ui-base",
+    "name": "IoT Lab",
+    "path": "/dashboard",
+    "appIcon": "",
+    "includeClientData": true,
+    "acceptsClientConfig": [
+      "ui-switch",
+      "ui-text"
+    ],
+    "showPathInSidebar": false,
+    "headerContent": "page",
+    "navigationStyle": "default",
+    "titleBarStyle": "default",
+    "showReconnectNotification": true,
+    "notificationDisplayTime": 3,
+    "showDisconnectNotification": true,
+    "allowInstall": false
+  },
+  {
+    "id": "b100000000000031",
+    "type": "ui-page",
+    "name": "Room 1",
+    "ui": "b100000000000030",
+    "path": "/room1",
+    "icon": "home-thermometer",
+    "layout": "grid",
+    "theme": "b100000000000032",
+    "breakpoints": [
+      {
+        "name": "Default",
+        "px": 0,
+        "cols": 3
+      },
+      {
+        "name": "Tablet",
+        "px": 576,
+        "cols": 6
+      },
+      {
+        "name": "Desktop",
+        "px": 1024,
+        "cols": 12
+      }
+    ],
+    "order": 1,
+    "className": "",
+    "visible": "true",
+    "disabled": "false"
+  },
+  {
+    "id": "b100000000000032",
+    "type": "ui-theme",
+    "name": "Lab light",
+    "colors": {
+      "surface": "#ffffff",
+      "primary": "#2563eb",
+      "bgPage": "#f1f5f9",
+      "groupBg": "#ffffff",
+      "groupOutline": "#cbd5e1"
+    },
+    "sizes": {
+      "pagePadding": "16px",
+      "groupGap": "16px",
+      "groupBorderRadius": "8px",
+      "widgetGap": "12px",
+      "density": "comfortable"
+    }
+  },
+  {
+    "id": "b100000000000033",
+    "type": "ui-group",
+    "name": "Room 1 sensor and fan",
+    "page": "b100000000000031",
+    "width": 6,
+    "height": 1,
+    "order": 1,
+    "showTitle": true,
+    "className": "",
+    "visible": "true",
+    "disabled": "false",
+    "groupType": "default"
+  }
+]
