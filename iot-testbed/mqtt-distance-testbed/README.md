@@ -150,7 +150,7 @@ To run the distance simulator and Python actuator in two terminals:
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
+pip install -r paho-mqtt==2.1.0
 python distance_publisher.py --interval 5
 ```
 
