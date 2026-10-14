@@ -1,0 +1,565 @@
+SIMPLE TCP SYN BURST DEMONSTRATION: COMPLETE SCRIPT EXPLANATION
+============================================================
+
+File explained: run_tcp_burst.sh
+Companion capture file: your existing capture_baseline.sh
+
+1. WHAT THIS SCRIPT DOES
+-----------------------
+This script runs a small experiment against your existing Mosquitto broker:
+
+  A. Find the Mosquitto container and its Docker IP address.
+  B. Create a results folder and record experiment settings.
+  C. Start your capture_baseline.sh in the background.
+  D. Allow two seconds for capture startup.
+  E. Observe 60 seconds of normal application traffic.
+  F. Send 1,500 TCP SYN probes at a requested rate of 50 probes/second.
+  G. Observe 60 seconds after the burst.
+  H. Wait for the capture helper to finish.
+  I. Export packet fields to CSV and record how many matching SYNs were seen.
+
+The runner does not start Docker, Node-RED, the temperature publisher, or the
+virtual fan. Start those first using the startup instructions you already used.
+Keep the sensor and fan running during all three measured phases.
+
+This runner deliberately has no error-checking or exception-handling logic.
+There are no conditionals, dependency checks, retries, signal handlers, readiness
+checks, automatic success decisions, or timeout wrapper. Individual commands
+can still report their own errors. Those ordinary program errors are not custom
+error handling written into this runner.
+
+Scope: this simplification applies to run_tcp_burst.sh. Your separate
+capture_baseline.sh remains the existing helper, including its own internal
+checks, temporary-folder permission fix, and cleanup. It is not rewritten here.
+
+2. THE ANALOGY: A BUILDING, A CAMERA, AND A DEMONSTRATION
+------------------------------------------------------
+Imagine the broker is the reception desk in a building.
+
+- The sensor, Node-RED, and fan are regular visitors exchanging messages through
+  reception. The broker routes each MQTT message to its subscribers.
+- capture_baseline.sh is the camera watching the reception doorway.
+- run_tcp_burst.sh is the presenter: it starts the camera, waits, performs the
+  demonstration, waits again, and organizes the recording.
+- A TCP SYN is like asking reception to begin admitting a visitor. Normal TCP
+  communication completes the connection setup; this burst sends raw SYN probes
+  rather than conducting normal MQTT conversations.
+- The burst is repeated requests at the doorway, alongside normal visitors.
+  It is not proof that reception becomes overwhelmed.
+- traffic.pcapng is the recording; traffic.csv is an index of packet details;
+  timeline.csv is the presenter's notebook of phase times.
+
+The runner uses the broker's Docker IP so the burst passes through the doorway
+the camera watches: the broker's eth0 interface. Normal Python clients keep
+using the published host address, normally 127.0.0.1:1883.
+
+3. HOW TO INSTALL AND RUN THIS VERSION
+------------------------------------
+Save the new run_tcp_burst.sh beside the deployed compose.yaml and existing
+capture_baseline.sh, replacing the old runner. If you use the updated ZIP, its
+capture helper is the same previously supplied helper, not a newly simplified
+helper. Keep the README_FEDORA.md from your original project for setup details.
+
+In the deployed project folder, start the containers:
+
+  sudo docker compose up -d
+
+Open the Node-RED editor, normally http://127.0.0.1:1880. Reuse the deployed
+Room 1 software lab flow. Its MQTT nodes should show connected to mosquitto:1883.
+The flow uses the editor's Debug sidebar, not a separate dashboard or AUTO mode.
+
+In one terminal, activate your working Python environment and start the fan:
+
+  source .venv/bin/activate
+  python -u fan_subscriber.py
+
+In another terminal, activate the environment and start the sensor:
+
+  source .venv/bin/activate
+  python -u temperature_publisher.py
+
+Run both commands from the project folder. If your published MQTT host port is
+1884, add --port 1884 to both Python commands. Node-RED, the burst, and the
+capture still use internal broker port 1883.
+
+Once normal readings and fan commands are flowing, use a third terminal:
+
+  bash run_tcp_burst.sh
+
+Do not start a second capture: this runner starts capture_baseline.sh itself.
+Normal runtime is around 165 seconds for capture, plus initial commands and
+the final export. A failed run can have a different duration.
+
+Required installed commands include bash, sudo, docker with Compose, nping,
+tshark, date, dirname, mkdir, sleep, and wc. The existing capture helper also
+uses nsenter, dumpcap, realpath, mktemp, chmod, chown, and related utilities.
+The runner does not check whether any of these are installed.
+
+4. STARTUP LINES AND SHELL BASICS
+-------------------------------
+  #!/usr/bin/env bash
+
+This first line is the shebang: when launched directly as an executable, it
+requests Bash through env. When you run bash run_tcp_burst.sh, you already
+explicitly select Bash. Bash reads and executes the shell commands in the file.
+
+Lines beginning with # are comments. They explain the code and are not executed.
+The shebang is the special first-line exception used by the operating system.
+
+  cd "$(dirname "$0")"
+
+cd changes the working directory. "$0" refers to the script's invocation path.
+dirname extracts its directory. $(...) means command substitution: execute the
+command inside and insert its standard output, removing trailing newlines.
+
+For example, if the invocation path is /some/project/run_tcp_burst.sh, dirname
+returns /some/project and cd moves there. This lets subsequent commands find
+compose.yaml and capture_baseline.sh beside the runner.
+
+Double quotes keep paths with spaces as one argument and still allow variables
+and $(...) to expand. This matters for your Study Files folder. Single quotes,
+used later, preserve text literally without shell variable expansion.
+
+There is no 'set -euo pipefail'. Therefore the runner does not automatically
+stop for ordinary failed commands, reject unset variables, or propagate an
+earlier pipeline failure through pipefail. Its last echo can succeed even when
+earlier commands failed. Reaching the end is not a success verdict.
+
+5. DISCOVERING THE BROKER
+------------------------
+  container=$(sudo docker compose ps -q mosquitto)
+
+container is a shell variable. Assignment has no spaces around =.
+$(...) captures the command output into that variable.
+
+sudo runs the command with elevated privileges. Your lab uses rootful Docker;
+these commands use that daemon. sudo may prompt for your password and normally
+caches credentials for later commands according to the machine's sudo policy.
+
+docker compose reads the project's Compose configuration.
+ps lists its containers. -q requests just the container IDs.
+mosquitto selects the service with that exact name in your compose.yaml.
+The resulting container ID identifies the broker for the next command.
+
+  broker_ip=$(sudo docker inspect --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$container")
+
+docker inspect reads the container's details. --format selects specific data
+instead of displaying the complete JSON description.
+
+The text inside {{...}} is Docker's Go-template syntax, not Bash syntax:
+
+  range .NetworkSettings.Networks
+      Visit each network attachment listed in the container's network settings.
+  .IPAddress
+      Print that attachment's IPv4 address.
+  end
+      End the template's range block.
+
+The single quotes protect the complete template as one literal argument.
+"$container" expands to the stored container ID. $variable reads a variable's
+value; it does not execute another command.
+
+Your uploaded Compose configuration uses one network for the broker, so the
+template produces one address. The runner assumes this topology; it does not
+validate it. With multiple networks, this particular template concatenates the
+addresses, which would not be a usable single target.
+
+broker_ip now holds the broker's Docker-network address. It is not assumed to
+be any fixed address such as 172.20.0.2; Docker supplies the real address.
+
+No route test, TCP connection test, broker restart check, or IP validity check
+is performed. The broker must stay in the same container/network during the run.
+
+6. RESULTS FOLDER AND SETTINGS
+-----------------------------
+  run_dir="$PWD/results/tcp-syn-$(date -u +%Y%m%dT%H%M%S)"
+  mkdir -p "$run_dir"
+
+$PWD is the current directory after cd. The folder is therefore inside your
+project's results directory. date supplies the UTC date/time for the name.
+
+date -u uses UTC, independently of your local Vietnamese timezone.
+In this date format:
+  %Y = four-digit year; %m = month; %d = day;
+  %H = hour; %M = minute; %S = second;
+  T = an ordinary literal separating date and time.
+The leading + tells date that the following text is an output format.
+
+mkdir creates a directory. -p also creates missing parent directories and does
+not complain merely because the directory already exists. The timestamp has
+second-level resolution; runs started in the same second can reuse the same
+folder. The runner has no overwrite checks.
+
+The following brace block prints the settings:
+
+  {
+      echo "broker_ip=$broker_ip"
+      echo "destination_port=1883"
+      ...
+  } > "$run_dir/metadata.txt"
+
+echo prints a line. Braces group several commands so a single output redirection
+can collect all their output. The braces are shell syntax; the spaces/newlines
+around them matter.
+
+> redirects standard output into a file. It creates the file if necessary and
+truncates an existing file. The block produces metadata.txt with the target IP,
+ports, rate, probe count, baseline/recovery duration, and capture duration.
+
+Important: metadata.txt is a record, not a configuration file. The runner does
+not read its contents. Editing metadata.txt will not alter the burst parameters.
+
+  echo "event,time_utc" > "$run_dir/timeline.csv"
+
+This writes the CSV header: two columns named event and time_utc. CSV means
+comma-separated values. Later phase rows are appended beneath the header.
+
+  echo "Results folder: $run_dir"
+
+This echo has no file redirection, so it prints to your terminal.
+
+7. BACKGROUND CAPTURE, REDIRECTION, AND PROCESS IDs
+-------------------------------------------------
+  bash capture_baseline.sh 165 "$run_dir/traffic.pcapng" > "$run_dir/capture.log" 2>&1 &
+  capture_pid=$!
+  sleep 2
+
+bash executes the existing capture helper. Its first argument, 165, requests
+165 seconds of recording. Its second argument is the final capture pathname.
+
+Your helper enters only the broker's network namespace and uses host dumpcap
+on the broker's eth0 with capture filter 'tcp port 1883'. A network namespace is
+a separate view of network interfaces and networking state: the helper sees
+the broker's interface while retaining the host filesystem for file handling.
+
+The helper retains the temporary-folder fix from your earlier experiment:
+create /tmp/mqtt-capture.*, apply chmod 1777, record there, then copy the capture
+to the requested location. The mode gives users directory read/write/search
+permissions and applies the sticky bit, which restricts deletion/renaming of
+other users' entries. This permits dumpcap's recording process to create its
+file despite the earlier directory-permission problem.
+
+The runner's redirection syntax uses standard file descriptors:
+  0 = standard input;
+  1 = standard output;
+  2 = standard error.
+
+> capture.log sends normal helper output to the log.
+2>&1 then sends error output to the same destination as standard output.
+The order matters: standard output is redirected first, then error output is
+connected to it. This keeps status messages and errors in one capture log.
+
+The final & launches that command asynchronously, in the background. The runner
+continues while the helper records. Without &, it would wait for the full
+capture before reaching the baseline and burst commands.
+
+$! is the process ID of the most recently launched background job. capture_pid
+stores the helper job's ID, not necessarily the internal dumpcap process ID.
+It will be used by wait later. PID means process ID: a number Linux uses to
+identify a running process.
+
+sleep 2 pauses the runner for two seconds. It is a fixed startup allowance, not
+a confirmation that capture is ready. No readiness file is passed or polled by
+this runner. A slow or failed helper can therefore miss traffic.
+
+8. BASELINE AND TIMELINE RECORDS
+-------------------------------
+  echo "Baseline: 60 seconds"
+  echo "baseline_start,$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$run_dir/timeline.csv"
+  sleep 60
+
+The first line announces the phase in the terminal.
+The second records the event name and a UTC timestamp.
+The third pauses the runner while the existing applications continue running.
+
+The date format here includes hyphens and colons for readability. The final Z
+is a literal UTC marker; -u is what actually makes date use UTC. The result is
+such as 2026-10-07T05:15:00Z, with second-level precision.
+
+>> appends to a file instead of replacing it. Without this second >, each new
+phase marker would replace the earlier timeline contents.
+
+Baseline means the observation period before this script sends its SYN probes.
+It does not certify that all existing traffic is benign, nor does it confirm
+the sensor/fan is running. Those are demonstration preconditions you establish.
+
+The script repeats this timestamp pattern for burst_start, burst_end,
+recovery_end, and capture_wait_end. The markers describe command sequencing:
+burst_start marks the end of baseline, and burst_end marks the start of recovery.
+They are not the exact first/last packet timestamps. The capture contains the
+packet-level timestamps for a more precise analysis.
+
+9. THE Nping BURST
+------------------
+  echo "Burst: $broker_ip:1883"
+  echo "burst_start,$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$run_dir/timeline.csv"
+  sudo nping --tcp --flags syn --source-port 40000 \
+      -p 1883 --rate 50 --count 1500 "$broker_ip" > "$run_dir/nping.log" 2>&1
+  echo "burst_end,$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$run_dir/timeline.csv"
+
+Nping is the packet generator. The backslash at the end of the first command
+line continues the command onto the next line; it is still one command. It must
+be immediately before the newline, with no trailing spaces after it.
+
+Each argument has a specific job:
+  sudo: request privileges for raw packet generation.
+  --tcp: generate TCP probes.
+  --flags syn: set the TCP SYN flag.
+  --source-port 40000: give the outgoing probes TCP source port 40000.
+  -p 1883: use destination port 1883, the broker's internal MQTT TCP endpoint.
+  --rate 50: request 50 outgoing probes per second.
+  --count 1500: send 1,500 probe rounds, then finish.
+  "$broker_ip": use the Docker address discovered earlier.
+
+For one target and one destination port, 1,500 rounds produce 1,500 probes.
+At the requested rate, 1500 / 50 = approximately 30 seconds. Actual scheduling
+and execution time can vary. Replies are extra packets, not part of the 1,500
+outgoing-probe total.
+
+This command has no trailing &, so it runs in the foreground. The runner waits
+for Nping to finish before recording burst_end and moving to recovery.
+Its standard output and standard error go into nping.log.
+
+There is no timeout command. Nping's finite count normally ends the burst, but
+this runner adds no extra runtime deadline or automatic interruption handling.
+
+TCP is the transport protocol carrying the MQTT connection. A normal setup is
+SYN, SYN-ACK, ACK, followed by application exchanges such as MQTT CONNECT.
+SYN requests connection synchronization; ACK acknowledges received TCP sequence
+space. These TCP flags are distinct from MQTT control messages such as CONNACK
+or PUBACK.
+
+Nping generates raw SYN probes here. It is not sending MQTT CONNECT or PUBLISH
+messages. Source port 40000 makes the test traffic easier to select later; it
+is a test convention, not a globally unique device ID or a malicious indicator.
+No source IP spoofing is configured in this command.
+
+This reproduces a bounded SYN-burst pattern, not guaranteed connection-state
+exhaustion. The kernel may answer unexpected SYN-ACKs with RST packets that
+release connection state. The fixed source port also does not generate a large
+population of independent source/destination connection tuples. At this rate,
+normal broker service may continue without measurable degradation.
+
+10. RECOVERY AND WAITING FOR THE CAPTURE
+--------------------------------------
+  echo "Recovery: 60 seconds"
+  sleep 60
+  echo "recovery_end,..." >> "$run_dir/timeline.csv"
+  wait "$capture_pid"
+  echo "capture_wait_end,..." >> "$run_dir/timeline.csv"
+
+The real timestamp expressions replace the ... shown in this explanation.
+Recovery is an observation window after the burst. The runner does not restart
+services, reconnect clients, or make recovery happen. Your legitimate programs
+continue running according to their own behavior.
+
+wait is a Bash builtin. It waits for the stored background helper job to finish,
+so exports normally begin after the recording has been copied to traffic.pcapng.
+The helper can fail; this runner does not inspect wait's exit status. Thus,
+capture_wait_end means the wait command returned, not that capture succeeded.
+
+The requested phases total about 150 seconds: 60 + 30 + 60. Capture requests
+165 seconds to provide startup/end margin. The two-second startup sleep is
+also part of the elapsed time after launching capture. The fixed allowance
+does not synchronize readiness, and delays can consume the margin.
+
+11. EXPORTING TRAFFIC.CSV
+------------------------
+  tshark -r "$run_dir/traffic.pcapng" -Y 'tcp.port == 1883' \
+      -T fields -E header=y -E separator=, -E quote=d -E occurrence=a \
+      -e frame.number -e frame.time_epoch -e frame.len \
+      -e ip.src -e ip.dst -e tcp.stream -e tcp.srcport -e tcp.dstport \
+      -e tcp.flags.syn -e tcp.flags.ack -e tcp.flags.reset \
+      -e mqtt.msgtype -e mqtt.clientid -e mqtt.topic -e mqtt.qos \
+      -e mqtt.retain -e mqtt.msg > "$run_dir/traffic.csv"
+
+TShark is Wireshark's command-line packet-analysis tool. Here it reads the saved
+capture; it does not start another live capture.
+
+  -r: read this capture file.
+  -Y: apply a Wireshark display filter to select packets for output.
+  'tcp.port == 1883': select TCP packets with source OR destination port 1883.
+  ==: equality within the display-filter language, not a shell error check.
+  -T fields: output selected packet fields instead of normal packet summaries.
+  -E header=y: include a column-header row.
+  -E separator=,: separate columns with commas.
+  -E quote=d: surround field values with double quotes.
+  -E occurrence=a: output all occurrences when a field appears multiple times.
+  -e: add the following named field as an output column.
+  > traffic.csv: write the exported data into that file.
+
+The -Y filter is different from the helper's -f capture filter. The helper's
+filter decides which traffic gets recorded; this display filter selects from
+traffic already recorded. It cannot recover packets excluded or missed during
+capture.
+
+The exported fields, in order, mean:
+
+  frame.number      Packet/frame position within the capture.
+  frame.time_epoch  Capture timestamp expressed as seconds since Unix epoch
+                    (1970-01-01 00:00:00 UTC), potentially with fractions.
+  frame.len         Reported frame length in bytes; different from MQTT payload
+                    size alone.
+  ip.src            Source IPv4 address.
+  ip.dst            Destination IPv4 address.
+  tcp.stream        Wireshark's capture-local TCP conversation index; not a
+                    persistent device identity.
+  tcp.srcport       TCP source port.
+  tcp.dstport       TCP destination port.
+  tcp.flags.syn     Whether the SYN bit is set, usually represented as 1 or 0.
+  tcp.flags.ack     Whether the ACK bit is set.
+  tcp.flags.reset   Whether the RST/reset bit is set.
+  mqtt.msgtype      Decoded MQTT control-packet type, such as CONNECT or PUBLISH.
+  mqtt.clientid     MQTT client identifier when present, typically in CONNECT;
+                    it is not repeated in every MQTT packet.
+  mqtt.topic        MQTT topic/routing name where the decoded message has one.
+  mqtt.qos          MQTT Quality of Service level where present.
+  mqtt.retain       MQTT retain flag where present.
+  mqtt.msg          MQTT message payload as represented by TShark's dissector;
+                    do not assume every exported value is readable JSON.
+
+The CSV represents selected captured packets, not one row per sensor reading.
+TCP-only packets have blank MQTT fields. Some MQTT control messages have no
+topic or payload. Multiple MQTT messages can share a TCP segment, and messages
+can span segments. All-occurrence output can therefore contain multiple values
+within a quoted cell. Keep the original PCAPNG for detailed interpretation.
+
+Since the legitimate clients normally start before the runner, their initial
+CONNECT/SUBSCRIBE packets may not be recorded. Missing client IDs in this CSV
+do not mean clients lacked IDs.
+
+12. COUNTING MATCHING SYN PACKETS
+--------------------------------
+  tshark -r "$run_dir/traffic.pcapng" \
+      -Y "ip.dst == $broker_ip && tcp.dstport == 1883 && tcp.srcport == 40000 && tcp.flags.syn == 1 && tcp.flags.ack == 0" \
+      -T fields -e frame.number | wc -l > "$run_dir/syn_count.txt"
+
+The filter selects packets satisfying ALL of these conditions:
+  destination IP is the discovered broker;
+  destination TCP port is 1883;
+  source TCP port is 40000;
+  SYN flag is set;
+  ACK flag is not set.
+
+&& means logical AND inside the quoted Wireshark filter. It is not Bash's
+conditional-command operator here: the shell passes the text to TShark.
+Double quotes permit $broker_ip to expand into the filter's target address.
+ACK=0 excludes SYN-ACK replies from this outgoing-SYN selection.
+
+-T fields -e frame.number produces one frame-number line per selected packet.
+The pipe | feeds this standard output into the next command's standard input.
+wc -l counts the received newline-terminated lines. Its output is redirected
+to syn_count.txt. The selected frame numbers are not separately saved.
+
+This is a measurement, not a pass/fail check. The script does not compare the
+number against 1500, stop on zero, or print a success assertion. Its filter is
+a way to select evidence, not exception handling.
+
+On a complete run with no capture loss, the count would normally match the
+1,500 generated probes. A different value needs manual interpretation. Zero
+can mean no matching traffic, but it can also follow a missing/invalid capture
+or a failed TShark command: with no pipefail, wc can still print zero after an
+upstream failure. Review nping.log, capture.log, terminal errors, and PCAPNG.
+
+Captured SYNs establish traffic presence. They do not prove successful denial
+of service. Assess sensor timing, fan receipts, disconnects, and broker behavior
+separately. The entire capture must not be labelled malicious: it also contains
+normal application traffic and the baseline/recovery windows.
+
+13. FINAL MESSAGE
+-----------------
+  echo "Script reached the end. Review the capture and logs in: $run_dir"
+
+This announces that command execution reached the last line. The wording is
+deliberate: there is no automatic declaration of success. If earlier commands
+failed, it can still print. Normal shutdown of the testbed remains your task:
+stop the Python programs with Ctrl+C and use sudo docker compose down afterward.
+
+There are no runner signal traps or special Ctrl+C cleanup routines. An
+interruption can leave the background capture helper running until it finishes
+or handles its own signals. The existing helper has its own behavior; the
+runner no longer supervises termination or marks incomplete runs.
+
+14. THE SEVEN RESULT FILES
+-------------------------
+On a normally completed run, the folder contains seven files:
+
+  traffic.pcapng   Original recording for Wireshark: primary packet evidence.
+  traffic.csv      Exported packet fields for analysis or later ML processing.
+  timeline.csv     Five phase markers in UTC, with second-level precision.
+  metadata.txt     Target and fixed settings needed to describe/repeat the run.
+  nping.log        Generator messages, packet statistics, and any errors.
+  capture.log      Existing capture helper's output, statistics, and errors.
+  syn_count.txt    Number of captured SYN requests matching the burst filter.
+
+Compared with the previous runner, the per-run output is reduced from 11 to 7
+files: 4 fewer files, a reduction of approximately 36%.
+
+Removed as separate outputs:
+  containers-before.txt
+  containers-after.txt
+  capture-info.txt
+  burst-syns.tsv
+
+verification.txt is replaced by syn_count.txt: a plain count rather than an
+automatic verification/pass-fail report. The runner no longer creates its
+.capture-ready or .burst-pid coordination files. The existing capture helper
+can still use its own temporary files outside the results folder.
+
+15. ASSUMPTIONS TO DESCRIBE IN YOUR DEMONSTRATION DOCUMENT
+-------------------------------------------------------
+- Use the deployed rootful Docker Engine on Fedora, not a remote Docker daemon
+  or a different rootless networking arrangement.
+- Put the runner beside compose.yaml and the existing working capture helper.
+- Start Mosquitto, Node-RED, the fan, and the sensor before the experiment.
+- Use the uploaded single-network topology and internal TCP broker port 1883.
+- The broker's container and network namespace stay unchanged during the run.
+- Installed tools and sudo access are available, and file paths are writable.
+- Two seconds is an assumed capture startup allowance, not a readiness check.
+- Failures can leave partial, missing, or misleading outputs. There are no
+  automatic failure labels, retries, or success assertions in this runner.
+- Burst traffic and successful availability disruption are different outcomes.
+
+The behavioral mapping remains a bounded emulation of ATT&CK T1498.001 Direct
+Network Flood. In the Cyber Kill Chain, it represents Actions on Objectives:
+attempting availability disruption. No compromise, malware installation, C2,
+or distributed botnet is implemented by this script.
+
+16. CHANGING SETTINGS LATER
+--------------------------
+The parameters are literal values in the commands, not a configurable interface.
+For a different demonstration duration, change the relevant sleep command(s)
+and capture duration, then update metadata.txt's echo statements in the script.
+The saved metadata must reflect the command settings you actually used.
+
+If source port changes, update both the Nping option and the SYN-count filter.
+If the internal broker destination port changes, update the generator, export
+filter, count filter, and capture helper's capture filter. Changing only the
+published host port does not change the internal broker port.
+
+17. SOURCES AND VALIDATION BOUNDARY
+---------------------------------
+The actual uploaded project files are the source for topology and capture
+placement. This explanation describes the newly simplified runner, replacing
+the earlier runner explanation and its readiness/error-handling instructions.
+
+References for command and protocol behavior:
+  Bash shell syntax, variables, redirection, background jobs, and wait:
+    https://www.gnu.org/software/bash/manual/bash.html
+  Docker inspect formatting:
+    https://docs.docker.com/reference/cli/docker/inspect/
+  Nping TCP flags, source port, rate, and probe count:
+    https://nmap.org/book/nping-man.html
+  Kernel RST response to unexpected SYN-ACK:
+    https://nmap.org/book/man-host-discovery.html
+  TShark field output and display filters:
+    https://www.wireshark.org/docs/man-pages/tshark.html
+  Direct Network Flood:
+    https://attack.mitre.org/techniques/T1498/001/
+
+Validation consists of a Bash syntax check and mocked checks of command order,
+the seven output files, timestamps, generator settings, capture invocation, and
+SYN-count output. A deliberately failed mocked Nping command also confirmed
+that the runner continues instead of applying an error handler. Mocks do not
+generate real network traffic.
+Live Docker/Nping/dumpcap integration must be checked on your Fedora machine.
