@@ -1,0 +1,1191 @@
+[
+  {
+    "id": "e300000000000001",
+    "type": "tab",
+    "label": "ESP32 rich telemetry v2",
+    "disabled": false,
+    "info": "One ESP32 publishes simulated temperature + real device metrics and subscribes to ON/OFF. TFT displays PUBACK and SUBACK/rx/state. Manual is default. ON >=28 C / OFF <=26 C in AUTO. Disable other control flows on the same topics.",
+    "wires": []
+  },
+  {
+    "id": "e300000000000002",
+    "type": "mqtt-broker",
+    "name": "Mosquitto in Docker",
+    "broker": "mosquitto",
+    "port": "1883",
+    "clientid": "node-red-esp32-tft-controller",
+    "autoConnect": true,
+    "usetls": false,
+    "protocolVersion": "4",
+    "keepalive": "60",
+    "cleansession": true,
+    "autoUnsubscribe": true,
+    "birthTopic": "",
+    "birthQos": "0",
+    "birthPayload": "",
+    "birthMsg": {},
+    "closeTopic": "",
+    "closeQos": "0",
+    "closePayload": "",
+    "closeMsg": {},
+    "willTopic": "",
+    "willQos": "0",
+    "willPayload": "",
+    "willMsg": {},
+    "wires": []
+  },
+  {
+    "id": "e300000000000003",
+    "type": "comment",
+    "z": "e300000000000001",
+    "name": "Manual mode by default; enable Automatic control on the dashboard",
+    "x": 350,
+    "y": 60,
+    "wires": [],
+    "info": "Dashboard /esp32-lab/room1. AUTO is explicitly enabled by its switch; MANUAL is the startup default. Temperature is simulated with the ESP32/TFT-only hardware."
+  },
+  {
+    "id": "e300000000000004",
+    "type": "mqtt in",
+    "z": "e300000000000001",
+    "name": "Room telemetry in",
+    "x": 130,
+    "y": 140,
+    "wires": [
+      [
+        "e300000000000005"
+      ]
+    ],
+    "topic": "lab/esp32/telemetry",
+    "qos": "1",
+    "datatype": "utf8",
+    "broker": "e300000000000002",
+    "nl": false,
+    "rap": true,
+    "rh": 0,
+    "inputs": 0
+  },
+  {
+    "id": "e300000000000005",
+    "type": "json",
+    "z": "e300000000000001",
+    "name": "Parse room JSON",
+    "x": 370,
+    "y": 140,
+    "wires": [
+      [
+        "e300000000000006",
+        "e300000000000008",
+        "e300000000000020",
+        "e300000000000110"
+      ]
+    ],
+    "property": "payload",
+    "action": "obj",
+    "pretty": false
+  },
+  {
+    "id": "e300000000000006",
+    "type": "function",
+    "z": "e300000000000001",
+    "name": "Fan controller",
+    "x": 610,
+    "y": 140,
+    "wires": [
+      [
+        "e300000000000007"
+      ]
+    ],
+    "func": "const data = msg.payload;\nif (!data || typeof data.temperature !== \"number\" || !Number.isFinite(data.temperature)) {\n    node.warn(\"Expected JSON with a finite numeric temperature\");\n    return null;\n}\nif (flow.get(\"auto\") !== true) return null;\nlet state = flow.get(\"fan_state\") || context.get(\"fan\") || \"OFF\";\nif (data.temperature >= 28) state = \"ON\";\nelse if (data.temperature <= 26) state = \"OFF\";\ncontext.set(\"fan\", state);\nmsg.topic = \"lab/room1/fan/set\";\nmsg.payload = state;\nreturn msg;",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": []
+  },
+  {
+    "id": "e300000000000007",
+    "type": "mqtt out",
+    "z": "e300000000000001",
+    "name": "Fan command out",
+    "x": 850,
+    "y": 140,
+    "wires": [],
+    "topic": "lab/room1/fan/set",
+    "qos": "1",
+    "retain": "false",
+    "respTopic": "",
+    "contentType": "",
+    "userProps": "",
+    "correl": "",
+    "expiry": "",
+    "broker": "e300000000000002"
+  },
+  {
+    "id": "e300000000000008",
+    "type": "debug",
+    "z": "e300000000000001",
+    "name": "Room readings",
+    "x": 610,
+    "y": 210,
+    "wires": [],
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "tostatus": false,
+    "complete": "payload",
+    "targetType": "msg",
+    "statusVal": "",
+    "statusType": "auto"
+  },
+  {
+    "id": "e300000000000009",
+    "type": "inject",
+    "z": "e300000000000001",
+    "name": "Manual fan ON",
+    "x": 130,
+    "y": 290,
+    "wires": [
+      [
+        "e300000000000027"
+      ]
+    ],
+    "props": [
+      {
+        "p": "payload"
+      },
+      {
+        "p": "topic",
+        "vt": "str"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "onceDelay": 0.1,
+    "topic": "lab/room1/fan/set",
+    "payload": "ON",
+    "payloadType": "str"
+  },
+  {
+    "id": "e30000000000000a",
+    "type": "inject",
+    "z": "e300000000000001",
+    "name": "Manual fan OFF",
+    "x": 130,
+    "y": 350,
+    "wires": [
+      [
+        "e300000000000027"
+      ]
+    ],
+    "props": [
+      {
+        "p": "payload"
+      },
+      {
+        "p": "topic",
+        "vt": "str"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "onceDelay": 0.1,
+    "topic": "lab/room1/fan/set",
+    "payload": "OFF",
+    "payloadType": "str"
+  },
+  {
+    "id": "e30000000000000b",
+    "type": "mqtt in",
+    "z": "e300000000000001",
+    "name": "Fan commands in",
+    "x": 140,
+    "y": 440,
+    "wires": [
+      [
+        "e30000000000000c"
+      ]
+    ],
+    "topic": "lab/room1/fan/set",
+    "qos": "1",
+    "datatype": "utf8",
+    "broker": "e300000000000002",
+    "nl": false,
+    "rap": true,
+    "rh": 0,
+    "inputs": 0
+  },
+  {
+    "id": "e30000000000000c",
+    "type": "debug",
+    "z": "e300000000000001",
+    "name": "Observed fan commands",
+    "x": 450,
+    "y": 440,
+    "wires": [],
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "tostatus": false,
+    "complete": "payload",
+    "targetType": "msg",
+    "statusVal": "",
+    "statusType": "auto"
+  },
+  {
+    "id": "e30000000000000d",
+    "type": "mqtt in",
+    "z": "e300000000000001",
+    "name": "Fan state in",
+    "x": 130,
+    "y": 510,
+    "wires": [
+      [
+        "e30000000000000e",
+        "e300000000000028"
+      ]
+    ],
+    "topic": "lab/room1/fan/state",
+    "qos": "1",
+    "datatype": "utf8",
+    "broker": "e300000000000002",
+    "nl": false,
+    "rap": true,
+    "rh": 0,
+    "inputs": 0
+  },
+  {
+    "id": "e30000000000000e",
+    "type": "debug",
+    "z": "e300000000000001",
+    "name": "Reported logical fan state",
+    "x": 430,
+    "y": 510,
+    "wires": [],
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "tostatus": false,
+    "complete": "payload",
+    "targetType": "msg",
+    "statusVal": "",
+    "statusType": "auto"
+  },
+  {
+    "id": "e30000000000000f",
+    "type": "catch",
+    "z": "e300000000000001",
+    "name": "Flow errors",
+    "x": 120,
+    "y": 580,
+    "wires": [
+      [
+        "e300000000000010"
+      ]
+    ],
+    "scope": null,
+    "uncaught": false
+  },
+  {
+    "id": "e300000000000010",
+    "type": "debug",
+    "z": "e300000000000001",
+    "name": "Flow error details",
+    "x": 430,
+    "y": 580,
+    "wires": [],
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "tostatus": false,
+    "complete": "true",
+    "targetType": "full",
+    "statusVal": "",
+    "statusType": "auto"
+  },
+  {
+    "id": "e300000000000020",
+    "type": "function",
+    "z": "e300000000000001",
+    "name": "Format sensor value",
+    "x": 360,
+    "y": 660,
+    "wires": [
+      [
+        "e300000000000021"
+      ]
+    ],
+    "func": "const value = msg.payload && msg.payload.temperature;\nif (typeof value !== \"number\" || !Number.isFinite(value)) return null;\nmsg.payload = value.toFixed(1) + \" \u00b0C\";\nreturn msg;",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": []
+  },
+  {
+    "id": "e300000000000021",
+    "type": "ui-text",
+    "z": "e300000000000001",
+    "name": "Temperature display",
+    "x": 650,
+    "y": 660,
+    "wires": [],
+    "group": "e300000000000033",
+    "order": 1,
+    "width": 6,
+    "height": 1,
+    "label": "Temperature (SIM)",
+    "layout": "row-spread",
+    "style": false,
+    "font": "Helvetica",
+    "fontSize": 22,
+    "color": "#1e293b",
+    "wrapText": false,
+    "className": "",
+    "value": "payload",
+    "valueType": "msg"
+  },
+  {
+    "id": "e300000000000022",
+    "type": "ui-text",
+    "z": "e300000000000001",
+    "name": "Fan state display",
+    "x": 650,
+    "y": 720,
+    "wires": [],
+    "group": "e300000000000033",
+    "order": 2,
+    "width": 6,
+    "height": 1,
+    "label": "Reported logical fan state",
+    "layout": "row-spread",
+    "style": false,
+    "font": "Helvetica",
+    "fontSize": 22,
+    "color": "#1e293b",
+    "wrapText": false,
+    "className": "",
+    "value": "payload",
+    "valueType": "msg"
+  },
+  {
+    "id": "e300000000000023",
+    "type": "ui-text",
+    "z": "e300000000000001",
+    "name": "Control mode display",
+    "x": 650,
+    "y": 780,
+    "wires": [],
+    "group": "e300000000000033",
+    "order": 3,
+    "width": 6,
+    "height": 1,
+    "label": "Control mode",
+    "layout": "row-spread",
+    "style": false,
+    "font": "Helvetica",
+    "fontSize": 22,
+    "color": "#1e293b",
+    "wrapText": false,
+    "className": "",
+    "value": "payload",
+    "valueType": "msg"
+  },
+  {
+    "id": "e300000000000024",
+    "type": "ui-switch",
+    "z": "e300000000000001",
+    "name": "Fan ON/OFF",
+    "x": 140,
+    "y": 900,
+    "wires": [
+      [
+        "e300000000000027"
+      ]
+    ],
+    "group": "e300000000000033",
+    "order": 4,
+    "width": 6,
+    "height": 1,
+    "label": "Logical fan ON / OFF",
+    "passthru": false,
+    "decouple": false,
+    "topic": "",
+    "topicType": "str",
+    "style": "",
+    "className": "",
+    "layout": "row-spread",
+    "clickableArea": "switch",
+    "onvalue": "ON",
+    "onvalueType": "str",
+    "onicon": "",
+    "oncolor": "",
+    "offvalue": "OFF",
+    "offvalueType": "str",
+    "officon": "",
+    "offcolor": ""
+  },
+  {
+    "id": "e300000000000025",
+    "type": "ui-switch",
+    "z": "e300000000000001",
+    "name": "Automatic control",
+    "x": 140,
+    "y": 980,
+    "wires": [
+      [
+        "e300000000000026"
+      ]
+    ],
+    "group": "e300000000000033",
+    "order": 5,
+    "width": 6,
+    "height": 1,
+    "label": "Automatic control",
+    "passthru": false,
+    "decouple": false,
+    "topic": "",
+    "topicType": "str",
+    "style": "",
+    "className": "",
+    "layout": "row-spread",
+    "clickableArea": "switch",
+    "onvalue": "true",
+    "onvalueType": "bool",
+    "onicon": "",
+    "oncolor": "",
+    "offvalue": "false",
+    "offvalueType": "bool",
+    "officon": "",
+    "offcolor": ""
+  },
+  {
+    "id": "e300000000000026",
+    "type": "function",
+    "z": "e300000000000001",
+    "name": "Set control mode",
+    "x": 390,
+    "y": 980,
+    "wires": [
+      [
+        "e300000000000023"
+      ],
+      [
+        "e300000000000024"
+      ]
+    ],
+    "func": "const automatic = msg.payload === true;\nflow.set(\"auto\", automatic);\nreturn [\n    {payload: automatic ? \"AUTO\" : \"MANUAL\"},\n    {payload: flow.get(\"fan_state\") || \"OFF\", enabled: !automatic}\n];",
+    "outputs": 2,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": []
+  },
+  {
+    "id": "e300000000000027",
+    "type": "function",
+    "z": "e300000000000001",
+    "name": "Manual command guard",
+    "x": 390,
+    "y": 900,
+    "wires": [
+      [
+        "e300000000000007"
+      ]
+    ],
+    "func": "if (flow.get(\"auto\") === true) {\n    node.warn(\"Disable Automatic control before sending manual commands\");\n    return null;\n}\nif (msg.payload !== \"ON\" && msg.payload !== \"OFF\") return null;\nmsg.topic = \"lab/room1/fan/set\";\nreturn msg;",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": []
+  },
+  {
+    "id": "e300000000000028",
+    "type": "function",
+    "z": "e300000000000001",
+    "name": "Reported fan feedback",
+    "x": 370,
+    "y": 720,
+    "wires": [
+      [
+        "e300000000000022"
+      ],
+      [
+        "e300000000000024"
+      ]
+    ],
+    "func": "if (msg.payload !== \"ON\" && msg.payload !== \"OFF\") return null;\nflow.set(\"fan_state\", msg.payload);\nreturn [msg, {payload: msg.payload, enabled: flow.get(\"auto\") !== true}];",
+    "outputs": 2,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": []
+  },
+  {
+    "id": "e300000000000029",
+    "type": "inject",
+    "z": "e300000000000001",
+    "name": "Start in manual mode",
+    "x": 140,
+    "y": 1060,
+    "wires": [
+      [
+        "e300000000000026",
+        "e300000000000025"
+      ]
+    ],
+    "props": [
+      {
+        "p": "payload"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": true,
+    "onceDelay": 0.5,
+    "topic": "",
+    "payload": "false",
+    "payloadType": "bool"
+  },
+  {
+    "id": "e300000000000030",
+    "type": "ui-base",
+    "name": "ESP32 TFT Lab",
+    "path": "/esp32-lab",
+    "appIcon": "",
+    "includeClientData": true,
+    "acceptsClientConfig": [
+      "ui-switch",
+      "ui-text"
+    ],
+    "showPathInSidebar": false,
+    "headerContent": "page",
+    "navigationStyle": "default",
+    "titleBarStyle": "default",
+    "showReconnectNotification": true,
+    "notificationDisplayTime": 3,
+    "showDisconnectNotification": true,
+    "allowInstall": false
+  },
+  {
+    "id": "e300000000000031",
+    "type": "ui-page",
+    "name": "ESP32 pub/sub",
+    "ui": "e300000000000030",
+    "path": "/room1",
+    "icon": "chip",
+    "layout": "grid",
+    "theme": "e300000000000032",
+    "breakpoints": [
+      {
+        "name": "Default",
+        "px": 0,
+        "cols": 3
+      },
+      {
+        "name": "Tablet",
+        "px": 576,
+        "cols": 6
+      },
+      {
+        "name": "Desktop",
+        "px": 1024,
+        "cols": 12
+      }
+    ],
+    "order": 1,
+    "className": "",
+    "visible": "true",
+    "disabled": "false"
+  },
+  {
+    "id": "e300000000000032",
+    "type": "ui-theme",
+    "name": "Lab light",
+    "colors": {
+      "surface": "#ffffff",
+      "primary": "#2563eb",
+      "bgPage": "#f1f5f9",
+      "groupBg": "#ffffff",
+      "groupOutline": "#cbd5e1"
+    },
+    "sizes": {
+      "pagePadding": "16px",
+      "groupGap": "16px",
+      "groupBorderRadius": "8px",
+      "widgetGap": "12px",
+      "density": "comfortable"
+    }
+  },
+  {
+    "id": "e300000000000033",
+    "type": "ui-group",
+    "name": "ESP32 pub/sub control",
+    "page": "e300000000000031",
+    "width": 6,
+    "height": 1,
+    "order": 1,
+    "showTitle": true,
+    "className": "",
+    "visible": "true",
+    "disabled": "false",
+    "groupType": "default"
+  },
+  {
+    "id": "e300000000000040",
+    "type": "mqtt in",
+    "z": "e300000000000001",
+    "name": "ESP32 device status",
+    "topic": "lab/room1/device/status",
+    "qos": "1",
+    "datatype": "utf8",
+    "broker": "e300000000000002",
+    "nl": false,
+    "rap": true,
+    "rh": 0,
+    "inputs": 0,
+    "x": 150,
+    "y": 1150,
+    "wires": [
+      [
+        "e300000000000041"
+      ]
+    ]
+  },
+  {
+    "id": "e300000000000041",
+    "type": "ui-text",
+    "z": "e300000000000001",
+    "name": "ESP32 connectivity display",
+    "x": 650,
+    "y": 1150,
+    "wires": [],
+    "group": "e300000000000033",
+    "order": 6,
+    "width": 6,
+    "height": 1,
+    "label": "ESP32 broker status",
+    "layout": "row-spread",
+    "style": false,
+    "font": "Helvetica",
+    "fontSize": 22,
+    "color": "#1e293b",
+    "wrapText": false,
+    "className": "",
+    "value": "payload",
+    "valueType": "msg"
+  },
+  {
+    "id": "e300000000000100",
+    "type": "ui-group",
+    "name": "Room data (environment simulated)",
+    "page": "e300000000000031",
+    "width": 6,
+    "height": 1,
+    "order": 2,
+    "showTitle": true,
+    "className": "",
+    "visible": "true",
+    "disabled": "false",
+    "groupType": "default"
+  },
+  {
+    "id": "e300000000000101",
+    "type": "ui-group",
+    "name": "Device diagnostics",
+    "page": "e300000000000031",
+    "width": 6,
+    "height": 1,
+    "order": 3,
+    "showTitle": true,
+    "className": "",
+    "visible": "true",
+    "disabled": "false",
+    "groupType": "default"
+  },
+  {
+    "id": "e300000000000102",
+    "type": "ui-group",
+    "name": "Simulated occupancy events",
+    "page": "e300000000000031",
+    "width": 6,
+    "height": 1,
+    "order": 4,
+    "showTitle": true,
+    "className": "",
+    "visible": "true",
+    "disabled": "false",
+    "groupType": "default"
+  },
+  {
+    "id": "e300000000000120",
+    "type": "ui-text",
+    "z": "e300000000000001",
+    "name": "Humidity (SIM)",
+    "x": 980,
+    "y": 1300,
+    "wires": [],
+    "group": "e300000000000100",
+    "order": 1,
+    "width": 6,
+    "height": 1,
+    "label": "Humidity (SIM)",
+    "layout": "row-spread",
+    "style": false,
+    "font": "Helvetica",
+    "fontSize": 22,
+    "color": "#1e293b",
+    "wrapText": false,
+    "className": "",
+    "value": "payload",
+    "valueType": "msg"
+  },
+  {
+    "id": "e300000000000121",
+    "type": "ui-text",
+    "z": "e300000000000001",
+    "name": "Light (SIM)",
+    "x": 980,
+    "y": 1355,
+    "wires": [],
+    "group": "e300000000000100",
+    "order": 2,
+    "width": 6,
+    "height": 1,
+    "label": "Light (SIM)",
+    "layout": "row-spread",
+    "style": false,
+    "font": "Helvetica",
+    "fontSize": 22,
+    "color": "#1e293b",
+    "wrapText": false,
+    "className": "",
+    "value": "payload",
+    "valueType": "msg"
+  },
+  {
+    "id": "e300000000000122",
+    "type": "ui-text",
+    "z": "e300000000000001",
+    "name": "Pressure (SIM)",
+    "x": 980,
+    "y": 1410,
+    "wires": [],
+    "group": "e300000000000100",
+    "order": 3,
+    "width": 6,
+    "height": 1,
+    "label": "Pressure (SIM)",
+    "layout": "row-spread",
+    "style": false,
+    "font": "Helvetica",
+    "fontSize": 22,
+    "color": "#1e293b",
+    "wrapText": false,
+    "className": "",
+    "value": "payload",
+    "valueType": "msg"
+  },
+  {
+    "id": "e300000000000123",
+    "type": "ui-text",
+    "z": "e300000000000001",
+    "name": "CO2 (SIM)",
+    "x": 980,
+    "y": 1465,
+    "wires": [],
+    "group": "e300000000000100",
+    "order": 4,
+    "width": 6,
+    "height": 1,
+    "label": "CO2 (SIM)",
+    "layout": "row-spread",
+    "style": false,
+    "font": "Helvetica",
+    "fontSize": 22,
+    "color": "#1e293b",
+    "wrapText": false,
+    "className": "",
+    "value": "payload",
+    "valueType": "msg"
+  },
+  {
+    "id": "e300000000000124",
+    "type": "ui-text",
+    "z": "e300000000000001",
+    "name": "Occupancy (SIM)",
+    "x": 980,
+    "y": 1520,
+    "wires": [],
+    "group": "e300000000000100",
+    "order": 5,
+    "width": 6,
+    "height": 1,
+    "label": "Occupancy (SIM)",
+    "layout": "row-spread",
+    "style": false,
+    "font": "Helvetica",
+    "fontSize": 22,
+    "color": "#1e293b",
+    "wrapText": false,
+    "className": "",
+    "value": "payload",
+    "valueType": "msg"
+  },
+  {
+    "id": "e300000000000125",
+    "type": "ui-text",
+    "z": "e300000000000001",
+    "name": "Environment publish gap",
+    "x": 980,
+    "y": 1575,
+    "wires": [],
+    "group": "e300000000000100",
+    "order": 6,
+    "width": 6,
+    "height": 1,
+    "label": "Environment publish gap",
+    "layout": "row-spread",
+    "style": false,
+    "font": "Helvetica",
+    "fontSize": 22,
+    "color": "#1e293b",
+    "wrapText": false,
+    "className": "",
+    "value": "payload",
+    "valueType": "msg"
+  },
+  {
+    "id": "e300000000000110",
+    "type": "function",
+    "z": "e300000000000001",
+    "name": "Format rich room data",
+    "x": 660,
+    "y": 1400,
+    "wires": [
+      [
+        "e300000000000120"
+      ],
+      [
+        "e300000000000121"
+      ],
+      [
+        "e300000000000122"
+      ],
+      [
+        "e300000000000123"
+      ],
+      [
+        "e300000000000124"
+      ],
+      [
+        "e300000000000125"
+      ]
+    ],
+    "func": "const p = msg.payload || {};\nconst numeric = (key, unit) => typeof p[key] === \"number\" && Number.isFinite(p[key]) ? p[key].toFixed(1) + \" \" + unit : \"--\";\nreturn [\n    {payload: numeric(\"humidity_pct\", \"%\")},\n    {payload: numeric(\"light_lux\", \"lux\")},\n    {payload: numeric(\"pressure_hpa\", \"hPa\")},\n    {payload: numeric(\"co2_ppm\", \"ppm\")},\n    {payload: (typeof p.occupied === \"boolean\" ? (p.occupied ? \"OCCUPIED\" : \"CLEAR\") : \"--\")},\n    {payload: numeric(\"publish_gap_ms\", \"ms\")}\n];",
+    "outputs": 6,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": []
+  },
+  {
+    "id": "e300000000000130",
+    "type": "mqtt in",
+    "z": "e300000000000001",
+    "name": "Device metrics",
+    "x": 150,
+    "y": 1750,
+    "wires": [
+      [
+        "e300000000000131"
+      ]
+    ],
+    "topic": "lab/esp32/metrics",
+    "qos": "1",
+    "datatype": "utf8",
+    "broker": "e300000000000002",
+    "nl": false,
+    "rap": true,
+    "rh": 0,
+    "inputs": 0
+  },
+  {
+    "id": "e300000000000131",
+    "type": "json",
+    "z": "e300000000000001",
+    "name": "Parse Device metrics",
+    "x": 390,
+    "y": 1750,
+    "wires": [
+      [
+        "e300000000000132"
+      ]
+    ],
+    "property": "payload",
+    "action": "obj",
+    "pretty": false
+  },
+  {
+    "id": "e300000000000140",
+    "type": "ui-text",
+    "z": "e300000000000001",
+    "name": "Wi-Fi RSSI",
+    "x": 980,
+    "y": 1740,
+    "wires": [],
+    "group": "e300000000000101",
+    "order": 1,
+    "width": 6,
+    "height": 1,
+    "label": "Wi-Fi RSSI",
+    "layout": "row-spread",
+    "style": false,
+    "font": "Helvetica",
+    "fontSize": 22,
+    "color": "#1e293b",
+    "wrapText": false,
+    "className": "",
+    "value": "payload",
+    "valueType": "msg"
+  },
+  {
+    "id": "e300000000000141",
+    "type": "ui-text",
+    "z": "e300000000000001",
+    "name": "Free heap",
+    "x": 980,
+    "y": 1795,
+    "wires": [],
+    "group": "e300000000000101",
+    "order": 2,
+    "width": 6,
+    "height": 1,
+    "label": "Free heap",
+    "layout": "row-spread",
+    "style": false,
+    "font": "Helvetica",
+    "fontSize": 22,
+    "color": "#1e293b",
+    "wrapText": false,
+    "className": "",
+    "value": "payload",
+    "valueType": "msg"
+  },
+  {
+    "id": "e300000000000142",
+    "type": "ui-text",
+    "z": "e300000000000001",
+    "name": "Lowest free heap since boot",
+    "x": 980,
+    "y": 1850,
+    "wires": [],
+    "group": "e300000000000101",
+    "order": 3,
+    "width": 6,
+    "height": 1,
+    "label": "Lowest free heap since boot",
+    "layout": "row-spread",
+    "style": false,
+    "font": "Helvetica",
+    "fontSize": 22,
+    "color": "#1e293b",
+    "wrapText": false,
+    "className": "",
+    "value": "payload",
+    "valueType": "msg"
+  },
+  {
+    "id": "e300000000000143",
+    "type": "ui-text",
+    "z": "e300000000000001",
+    "name": "Latest environment PUBACK wait",
+    "x": 980,
+    "y": 1905,
+    "wires": [],
+    "group": "e300000000000101",
+    "order": 4,
+    "width": 6,
+    "height": 1,
+    "label": "Latest environment PUBACK wait",
+    "layout": "row-spread",
+    "style": false,
+    "font": "Helvetica",
+    "fontSize": 22,
+    "color": "#1e293b",
+    "wrapText": false,
+    "className": "",
+    "value": "payload",
+    "valueType": "msg"
+  },
+  {
+    "id": "e300000000000144",
+    "type": "ui-text",
+    "z": "e300000000000001",
+    "name": "Largest loop gap since boot",
+    "x": 980,
+    "y": 1960,
+    "wires": [],
+    "group": "e300000000000101",
+    "order": 5,
+    "width": 6,
+    "height": 1,
+    "label": "Largest loop gap since boot",
+    "layout": "row-spread",
+    "style": false,
+    "font": "Helvetica",
+    "fontSize": 22,
+    "color": "#1e293b",
+    "wrapText": false,
+    "className": "",
+    "value": "payload",
+    "valueType": "msg"
+  },
+  {
+    "id": "e300000000000145",
+    "type": "ui-text",
+    "z": "e300000000000001",
+    "name": "Accepted commands since boot",
+    "x": 980,
+    "y": 2015,
+    "wires": [],
+    "group": "e300000000000101",
+    "order": 6,
+    "width": 6,
+    "height": 1,
+    "label": "Accepted commands since boot",
+    "layout": "row-spread",
+    "style": false,
+    "font": "Helvetica",
+    "fontSize": 22,
+    "color": "#1e293b",
+    "wrapText": false,
+    "className": "",
+    "value": "payload",
+    "valueType": "msg"
+  },
+  {
+    "id": "e300000000000132",
+    "type": "function",
+    "z": "e300000000000001",
+    "name": "Format device metrics",
+    "x": 660,
+    "y": 1850,
+    "wires": [
+      [
+        "e300000000000140"
+      ],
+      [
+        "e300000000000141"
+      ],
+      [
+        "e300000000000142"
+      ],
+      [
+        "e300000000000143"
+      ],
+      [
+        "e300000000000144"
+      ],
+      [
+        "e300000000000145"
+      ]
+    ],
+    "func": "const p = msg.payload || {};\nconst numeric = (key, unit) => typeof p[key] === \"number\" && Number.isFinite(p[key]) ? p[key] + \" \" + unit : \"--\";\nreturn [\n    {payload: numeric(\"rssi_dbm\", \"dBm\")},\n    {payload: numeric(\"free_heap_bytes\", \"bytes\")},\n    {payload: numeric(\"min_free_heap_bytes\", \"bytes\")},\n    {payload: numeric(\"last_env_ack_ms\", \"ms\")},\n    {payload: numeric(\"max_loop_gap_ms\", \"ms\")},\n    {payload: numeric(\"rx_count\", \"commands\")}\n];",
+    "outputs": 6,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": []
+  },
+  {
+    "id": "e300000000000150",
+    "type": "mqtt in",
+    "z": "e300000000000001",
+    "name": "Occupancy events",
+    "x": 150,
+    "y": 2150,
+    "wires": [
+      [
+        "e300000000000151"
+      ]
+    ],
+    "topic": "lab/esp32/events",
+    "qos": "1",
+    "datatype": "utf8",
+    "broker": "e300000000000002",
+    "nl": false,
+    "rap": true,
+    "rh": 0,
+    "inputs": 0
+  },
+  {
+    "id": "e300000000000151",
+    "type": "json",
+    "z": "e300000000000001",
+    "name": "Parse Occupancy events",
+    "x": 390,
+    "y": 2150,
+    "wires": [
+      [
+        "e300000000000152"
+      ]
+    ],
+    "property": "payload",
+    "action": "obj",
+    "pretty": false
+  },
+  {
+    "id": "e300000000000152",
+    "type": "function",
+    "z": "e300000000000001",
+    "name": "Format occupancy event",
+    "x": 660,
+    "y": 2150,
+    "wires": [
+      [
+        "e300000000000153"
+      ]
+    ],
+    "func": "const p = msg.payload || {};\nif (p.event !== \"occupancy_changed\" || p.source !== \"simulated\" || typeof p.occupied !== \"boolean\") return null;\nreturn {payload: (p.occupied ? \"OCCUPIED\" : \"CLEAR\") + \" (SIM), event seq \" + p.seq};",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": []
+  },
+  {
+    "id": "e300000000000153",
+    "type": "ui-text",
+    "z": "e300000000000001",
+    "name": "Latest occupancy event",
+    "x": 980,
+    "y": 2150,
+    "wires": [],
+    "group": "e300000000000102",
+    "order": 1,
+    "width": 6,
+    "height": 1,
+    "label": "Latest occupancy change (SIM)",
+    "layout": "row-spread",
+    "style": false,
+    "font": "Helvetica",
+    "fontSize": 22,
+    "color": "#1e293b",
+    "wrapText": false,
+    "className": "",
+    "value": "payload",
+    "valueType": "msg"
+  }
+]

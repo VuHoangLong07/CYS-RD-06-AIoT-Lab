@@ -1,0 +1,96 @@
+{
+  "description": "Illustrative status from desktop mocks; not a hardware observation.",
+  "rows": [
+    {
+      "x": 8,
+      "y": 8,
+      "size": 2,
+      "colour": 65535,
+      "text": "ESP32 PUB + SUB"
+    },
+    {
+      "x": 8,
+      "y": 33,
+      "size": 1,
+      "colour": 2016,
+      "text": "WiFi:UP MQTT:ONLINE"
+    },
+    {
+      "x": 8,
+      "y": 47,
+      "size": 1,
+      "colour": 40179,
+      "text": "IP 192.0.2.10"
+    },
+    {
+      "x": 8,
+      "y": 65,
+      "size": 2,
+      "colour": 2047,
+      "text": "PUB"
+    },
+    {
+      "x": 8,
+      "y": 85,
+      "size": 1,
+      "colour": 2016,
+      "text": "ACK OK:5 ERR:0"
+    },
+    {
+      "x": 8,
+      "y": 99,
+      "size": 2,
+      "colour": 65504,
+      "text": "SIM 30.0 C"
+    },
+    {
+      "x": 8,
+      "y": 121,
+      "size": 1,
+      "colour": 40179,
+      "text": "TX 0s  seq:5"
+    },
+    {
+      "x": 8,
+      "y": 143,
+      "size": 2,
+      "colour": 2047,
+      "text": "SUB"
+    },
+    {
+      "x": 8,
+      "y": 163,
+      "size": 1,
+      "colour": 2016,
+      "text": "READY Q1 RX:2 BAD:0"
+    },
+    {
+      "x": 8,
+      "y": 177,
+      "size": 2,
+      "colour": 2016,
+      "text": "FAN ON"
+    },
+    {
+      "x": 8,
+      "y": 199,
+      "size": 1,
+      "colour": 40179,
+      "text": "Last:ON 0s ago"
+    },
+    {
+      "x": 8,
+      "y": 211,
+      "size": 1,
+      "colour": 40179,
+      "text": "lab/room1/fan/set"
+    },
+    {
+      "x": 8,
+      "y": 227,
+      "size": 1,
+      "colour": 40179,
+      "text": "STATE:ACK pubsub-tft-1.0.0"
+    }
+  ]
+}

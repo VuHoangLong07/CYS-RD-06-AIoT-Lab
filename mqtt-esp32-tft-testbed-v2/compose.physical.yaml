@@ -1,0 +1,5 @@
+# Add one reachable laptop LAN address, preserving the localhost binding.
+services:
+  mosquitto:
+    ports:
+      - "${LAB_LAN_IP:?Set the actual laptop LAN IPv4 in .env}:${MQTT_PORT:-1883}:1883"
